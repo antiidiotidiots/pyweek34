@@ -138,9 +138,6 @@ def drawIntro():
     window.clear()
 
     if introElapsed < 10:
-        print("TODO: Remove this after testing")
-        introElapsed = 10
-
         label = pyglet.text.Label(str(math.ceil(5 - introElapsed / 2)),
             font_name = "Poppins",
             font_size = 200,
