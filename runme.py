@@ -53,24 +53,54 @@ tileSize = 256 # Pixels?
 
 walkingFrame = 0
 
-staticAssets = {
-    "rocket": {
+staticAssets = [
+    {
+        "animated": False,
         "path": "rocket.png",
         "x": 0,
         "y": 0,
         "scale": tileSize
+    },
+    {
+        "animated": True,
+        "path": "fire.png",
+        "x": 75,
+        "y": 300,
+        "columns": 3,
+        "scale": tileSize
+    },
+    {
+        "animated": True,
+        "path": "fire.png",
+        "x": 350,
+        "y": 200,
+        "columns": 3,
+        "scale": tileSize
     }
-}
+]
 
 staticAssetList = []
 
 for staticAsset in staticAssets:
-    staticAssetList.append({
-        "image": pyglet.image.load("assets/images/static/" + staticAssets[staticAsset]["path"]),
-        "x": staticAssets[staticAsset]["x"],
-        "y": staticAssets[staticAsset]["y"],
-        "scale": staticAssets[staticAsset]["scale"] / 1024
-    })
+    if staticAsset["animated"]:
+        staticAssetList.append({
+            "animated": True,
+            "image": pyglet.image.ImageGrid(
+                pyglet.image.load("assets/images/static/" + staticAsset["path"]),
+                1, staticAsset["columns"]),
+            "x": staticAsset["x"],
+            "y": staticAsset["y"],
+            "scale": staticAsset["scale"] / 1024,
+            "frames": staticAsset["columns"]
+        })
+    else:
+        staticAssetList.append({
+            "animated": False,
+            "image": pyglet.image.load("assets/images/static/" + staticAsset["path"]),
+            "x": staticAsset["x"],
+            "y": staticAsset["y"],
+            "scale": staticAsset["scale"] / 1024
+        })
 
 noise = PerlinNoise(octaves = 1, seed = 1000)
 
@@ -287,13 +317,7 @@ def drawGame():
 
     for staticAsset in staticAssetList:
         if y >= staticAsset["y"]:
-            sprite = pyglet.sprite.Sprite(img = staticAsset["image"])
-            sprite.x = staticAsset["x"] - round(x)
-            sprite.y = staticAsset["y"] + round(y / 1.5)
-
-            sprite.scale = staticAsset["scale"]
-
-            sprite.draw()
+            drawStaticAsset(staticAsset)
 
     playerImagePicked = idleImage
     
@@ -316,13 +340,7 @@ def drawGame():
     
     for staticAsset in staticAssetList:
         if y < staticAsset["y"]:
-            sprite = pyglet.sprite.Sprite(img = staticAsset["image"])
-            sprite.x = staticAsset["x"] - round(x)
-            sprite.y = staticAsset["y"] + round(y / 1.5)
-
-            sprite.scale = staticAsset["scale"]
-
-            sprite.draw()
+            drawStaticAsset(staticAsset)
 
     UIBars = [
         {
@@ -376,6 +394,28 @@ def drawGame():
                 color = (255, 255, 255, 255),
                 anchor_x = "right", anchor_y = "top")
             countdown.draw()
+
+globalAnimationFrame = 0
+
+def drawStaticAsset(staticAsset):
+    global globalAnimationFrame
+
+    if staticAsset["animated"]:
+        sprite = pyglet.sprite.Sprite(img = staticAsset["image"][globalAnimationFrame % staticAsset["frames"]])
+        sprite.x = staticAsset["x"] - round(x)
+        sprite.y = staticAsset["y"] + round(y / 1.5)
+
+        sprite.scale = staticAsset["scale"]
+
+        sprite.draw()
+    else:
+        sprite = pyglet.sprite.Sprite(img = staticAsset["image"])
+        sprite.x = staticAsset["x"] - round(x)
+        sprite.y = staticAsset["y"] + round(y / 1.5)
+
+        sprite.scale = staticAsset["scale"]
+
+        sprite.draw()
 
 
 keysPressed = {
@@ -436,11 +476,17 @@ def on_mouse_press(x, y, button, modifiers):
 
 framerate = 144 # Frames per second
 
+timeSinceAnimationFrame = 0
+
 def update(dt):
-    global introElapsed, timeSinceAudioPlayed
+    global introElapsed, timeSinceAudioPlayed, timeSinceAnimationFrame, globalAnimationFrame
     
     if gameState == "running":
         updateGame(dt)
+        timeSinceAnimationFrame += 1 / framerate
+        if timeSinceAnimationFrame > 0.1:
+            timeSinceAnimationFrame = 0
+            globalAnimationFrame += 1
     elif gameState == "intro":
         introElapsed += 1 / framerate
         timeSinceAudioPlayed += 1 / framerate
