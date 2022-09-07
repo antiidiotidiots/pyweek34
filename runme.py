@@ -293,14 +293,17 @@ def drawGame():
     global walkingFrame, oxygen
 
     window.clear()
+    
+    calculatedX = x - window.width / 2
+    calculatedY = y + window.height / 2
 
-    offsetX = round(-x % tileSize)
-    offsetY = round(y % tileSize / 1.5)
+    offsetX = round(-calculatedX % tileSize)
+    offsetY = round(calculatedY % tileSize / 1.5)
     
     for tileX in range(-3, round(window.width / tileSize * 2) + 1):
         for tileY in range(-2, round(window.height / tileSize * 1.5) + 1):
-            tileWorldX = tileX / 2 + math.ceil(x / tileSize)
-            tileWorldY = tileY - math.ceil(y / tileSize)
+            tileWorldX = tileX / 2 + math.ceil(calculatedX / tileSize)
+            tileWorldY = tileY - math.ceil(calculatedY / tileSize)
 
             selectedImage = tiles["mars"]
             if noise([tileWorldX / 4, tileWorldY / 4]) > 0:
@@ -316,8 +319,8 @@ def drawGame():
             sprite.draw() # Draw sprite
 
     for staticAsset in staticAssetList:
-        if y >= staticAsset["y"]:
-            drawStaticAsset(staticAsset)
+        if calculatedY >= staticAsset["y"]:
+            drawStaticAsset(staticAsset, calculatedX, calculatedY)
 
     playerImagePicked = idleImage
     
@@ -339,9 +342,34 @@ def drawGame():
 
     
     for staticAsset in staticAssetList:
-        if y < staticAsset["y"]:
-            drawStaticAsset(staticAsset)
+        if calculatedY < staticAsset["y"]:
+            drawStaticAsset(staticAsset, calculatedX, calculatedY)
 
+    drawUI()
+
+globalAnimationFrame = 0
+
+def drawStaticAsset(staticAsset, calculatedX, calculatedY):
+    global globalAnimationFrame
+
+    if staticAsset["animated"]:
+        sprite = pyglet.sprite.Sprite(img = staticAsset["image"][globalAnimationFrame % staticAsset["frames"]])
+        sprite.x = staticAsset["x"] - round(calculatedX)
+        sprite.y = staticAsset["y"] + round(calculatedY / 1.5)
+
+        sprite.scale = staticAsset["scale"]
+
+        sprite.draw()
+    else:
+        sprite = pyglet.sprite.Sprite(img = staticAsset["image"])
+        sprite.x = staticAsset["x"] - round(calculatedX)
+        sprite.y = staticAsset["y"] + round(calculatedY / 1.5)
+
+        sprite.scale = staticAsset["scale"]
+
+        sprite.draw()
+
+def drawUI():
     UIBars = [
         {
             "name": "Oxygen",
@@ -394,28 +422,6 @@ def drawGame():
                 color = (255, 255, 255, 255),
                 anchor_x = "right", anchor_y = "top")
             countdown.draw()
-
-globalAnimationFrame = 0
-
-def drawStaticAsset(staticAsset):
-    global globalAnimationFrame
-
-    if staticAsset["animated"]:
-        sprite = pyglet.sprite.Sprite(img = staticAsset["image"][globalAnimationFrame % staticAsset["frames"]])
-        sprite.x = staticAsset["x"] - round(x)
-        sprite.y = staticAsset["y"] + round(y / 1.5)
-
-        sprite.scale = staticAsset["scale"]
-
-        sprite.draw()
-    else:
-        sprite = pyglet.sprite.Sprite(img = staticAsset["image"])
-        sprite.x = staticAsset["x"] - round(x)
-        sprite.y = staticAsset["y"] + round(y / 1.5)
-
-        sprite.scale = staticAsset["scale"]
-
-        sprite.draw()
 
 
 keysPressed = {
