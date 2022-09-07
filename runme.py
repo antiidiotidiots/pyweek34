@@ -1,4 +1,5 @@
 import chunk
+from tkinter import Y
 import pyglet
 from perlin_noise import PerlinNoise
 import math
@@ -51,11 +52,6 @@ for playerWalkingState in playerWalkingStates:
         1, 9)
 
 tileSize = 256 # Pixels?
-
-chunkSize = 8 # In tiles
-
-chunkSizeX = chunkSize * 2
-chunkSizeY = chunkSize
 
 walkingFrame = 0
 
@@ -144,7 +140,7 @@ shipPath = [
     { "x": 0.37, "y": 0.500 },
 ]
 
-chunksGenerated = {}
+structuresGenerated = {}
 
 soundNames = ["alarm", "blip", "step"]
 
@@ -328,24 +324,31 @@ def drawGame():
     # Make sure the world is centered around the player, not the bottom left of the screen
     calculatedX = x - window.width / 2
     calculatedY = y + window.height / 2
-    
-    chunkX = math.floor(calculatedX / (chunkSize * tileSize))
-    chunkY = math.floor(calculatedY / (chunkSize * tileSize))
-    chunkCode = str(chunkX) + "-" + str(chunkY)
+
+    playerTileX = math.floor(calculatedX / tileSize)
+    playerTileY = math.floor(calculatedY / tileSize)
 
     # Generate new chunks if we moved
-    if not calculatedX == oldX:
-        oldX = calculatedX
-        checkAndGenerateChunks(calculatedX, calculatedY, chunkX, chunkY, chunkCode)
+    if not playerTileX == oldX:
+        oldX = playerTileX
+        checkAndGenerateStructures(calculatedX, calculatedY, playerTileX, playerTileY)
 
-    if not calculatedY == oldY:
-        oldY = calculatedY
-        checkAndGenerateChunks(calculatedX, calculatedY, chunkX, chunkY, chunkCode)
+    if not playerTileY == oldY:
+        oldY = playerTileY
+        checkAndGenerateStructures(calculatedX, calculatedY, playerTileX, playerTileY)
 
     offsetX = round(-calculatedX % tileSize)
     offsetY = round(calculatedY % tileSize / 1.5)
+
+    batch = pyglet.graphics.Batch()
+    ground = pyglet.graphics.OrderedGroup(0)
+    ground2 = pyglet.graphics.OrderedGroup(1)
+    ground3 = pyglet.graphics.OrderedGroup(2)
+    structures = pyglet.graphics.OrderedGroup(3)
+
+    sprites = []
     
-    # Draw ground tiles
+    # # Draw ground tiles
     for tileX in range(-3, round(window.width / tileSize * 2) + 1):
         for tileY in range(-2, round(window.height / tileSize * 1.5) + 1):
             tileWorldX = tileX / 2 + math.ceil(calculatedX / tileSize)
@@ -354,7 +357,14 @@ def drawGame():
             selectedImage = tiles["mars"]
             if noise([tileWorldX / 4, tileWorldY / 4]) > 0:
                 selectedImage = tiles["marsLight"]
-            sprite = pyglet.sprite.Sprite(img=selectedImage)
+
+            groundGroup = ground
+            if (tileWorldX % 2 == 0 and not tileWorldY % 2 == 0):
+                groundGroup = ground2
+            if (tileWorldX % 2 == 0 and tileWorldY % 2 == 0):
+                groundGroup = ground3
+            
+            sprite = pyglet.sprite.Sprite(img = selectedImage, batch = batch, group = groundGroup)
             sprite.x = tileX * tileSize / 2 + offsetX
             if tileX % 2 == 0:
                 sprite.y = tileY * tileSize / 1.5 + offsetY
@@ -362,35 +372,27 @@ def drawGame():
                 sprite.y = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
             sprite.scale = tileSize / 1024
 
-            sprite.draw() # Draw sprite
+            sprites.append(sprite)
 
-    # Draw chunk structures like ores
-    if chunkCode in chunksGenerated:
-        for structureX in range(chunkSizeX):
-            for structureY in range(chunkSizeY):
-                chunkStructureWorldX = round(structureX / 2 + math.ceil(calculatedX / tileSize))
-                chunkStructureWorldY = round(structureY - math.ceil(calculatedY / tileSize))
+            tileStructureCode = str(tileWorldX) + "_" + str(tileWorldY)
 
-                if(chunkStructureWorldX < 0 or chunkStructureWorldX >= len(chunksGenerated[chunkCode])):
-                    continue
-                if(chunkStructureWorldY < 0 or chunkStructureWorldY >= len(chunksGenerated[chunkCode][chunkStructureWorldX])):
-                    continue
+            if tileStructureCode in structuresGenerated:
+                chunkStrucutre = structuresGenerated[tileStructureCode]
+                
+                if chunkStrucutre in chunkStructures:
+                    structureData = chunkStructures[chunkStrucutre]
 
-                chunkStructure = chunksGenerated[chunkCode][chunkStructureWorldX][chunkStructureWorldY]
-
-                if not chunkStructure == 0:
-                    chunkStructureData = chunkStructures[chunkStructure]
-
-                    sprite = pyglet.sprite.Sprite(img = chunkStructureData["image"])
-                    sprite.x = structureX * tileSize / 2 + offsetX
+                    sprite = pyglet.sprite.Sprite(img = structureData["image"], batch = batch, group = structures)
+                    sprite.x = tileX * tileSize / 2 + offsetX
                     if tileX % 2 == 0:
-                        sprite.y = structureY * tileSize / 1.5 + offsetY
+                        sprite.y = tileY * tileSize / 1.5 + offsetY
                     else:
-                        sprite.y = structureY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
-                    sprite.scale = tileSize / 1024
+                        sprite.y = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+                    sprite.scale = tileSize / 2048
 
-                    sprite.draw() # Draw sprite
+                    sprites.append(sprite)
 
+    batch.draw()
 
     # Draw static stuff like the rocket that are under the player
     for staticAsset in staticAssetList:
@@ -423,35 +425,22 @@ def drawGame():
     # Draw the oxygen bars, inventory, etc.
     drawUI()
 
-oldChunkX = 0
-oldChunkY = 0
-
-def checkAndGenerateChunks(calculatedX, calculatedY, chunkX, chunkY, chunkCode):
-    global oldChunkX, oldChunkY
-
-    if (not chunkX == oldChunkX) or (not chunkY == oldChunkY):
-        oldChunkX = chunkX
-        oldChunkY = chunkY
-
-        if not chunkCode in chunksGenerated:
-            chunksGenerated[chunkCode] = generateChunk(chunkX, chunkY)
+def checkAndGenerateStructures(calculatedX, calculatedY, structureX, structureY):
+    for structureX in range(-3, round(window.width / tileSize * 2) + 1):
+        for structureY in range(-2, round(window.height / tileSize * 1.5) + 1):
+            structureWorldX = structureX + math.floor(calculatedX * 2 / tileSize)
+            structureWorldY = structureY - math.floor(calculatedY / tileSize)
+            structureCode = str(structureWorldX / 2) + "_" + str(structureWorldY)
+            if not structureCode in structuresGenerated:
+                structuresGenerated[structureCode] = generateStructure(structureWorldX, structureWorldY)
 
 # TODO: Make this psudorandom rather than 100% random
-def generateChunk(chunkX, chunkY):
-    result = []
-
-    for tileX in range(chunkSizeX):
-        result.append([])
-        for tileY in range(chunkSizeY):
-            if random.random() > 0.8:
-                chunkStructure = random.choice(list(chunkStructures.keys()))
-                result[tileX].append(chunkStructure)
-            else:
-                result[tileX].append(0)
-
-    print(result)
-
-    return result
+def generateStructure(structureX, structureY):
+    if random.random() > 0.98:
+        chunkStructure = random.choice(list(chunkStructures.keys()))
+        return chunkStructure
+    else:
+        return 0
 
 globalAnimationFrame = 0
 
