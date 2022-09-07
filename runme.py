@@ -1,3 +1,4 @@
+import chunk
 import pyglet
 from perlin_noise import PerlinNoise
 import math
@@ -50,6 +51,11 @@ for playerWalkingState in playerWalkingStates:
         1, 9)
 
 tileSize = 256 # Pixels?
+
+chunkSize = 8 # In tiles
+
+chunkSizeX = chunkSize * 2
+chunkSizeY = chunkSize
 
 walkingFrame = 0
 
@@ -138,6 +144,8 @@ shipPath = [
     { "x": 0.37, "y": 0.500 },
 ]
 
+chunksGenerated = {}
+
 soundNames = ["alarm", "blip", "step"]
 
 sounds = {}
@@ -150,6 +158,26 @@ for i in range(starCount):
         "x": random.random(),
         "y": random.random()
     })
+
+chunkStructures = {
+    "ironOre": {
+        "path": "ironOre.png",
+        "breakTime": 3,
+        "gives": [
+            {"type": "ironChunk", "min": "1", "max": "3"}
+        ]
+    },
+    "carbonOre": {
+        "path": "carbonOre.png",
+        "breakTime": 2,
+        "gives": [
+            {"type": "carbonChunk", "min": "2", "max": "5"}
+        ]
+    }
+}
+
+for chunkStructure in chunkStructures:
+    chunkStructures[chunkStructure]["image"] = pyglet.image.load("assets/images/structures/" + chunkStructures[chunkStructure]["path"])
 
 @window.event
 def on_draw():
@@ -289,17 +317,35 @@ def drawConsole():
     )
     planet.draw()
 
+oldX = 0
+oldY = 0
+
 def drawGame():
-    global walkingFrame, oxygen
+    global walkingFrame, oxygen, oldX, oldY
 
     window.clear()
     
+    # Make sure the world is centered around the player, not the bottom left of the screen
     calculatedX = x - window.width / 2
     calculatedY = y + window.height / 2
+    
+    chunkX = math.floor(calculatedX / (chunkSize * tileSize))
+    chunkY = math.floor(calculatedY / (chunkSize * tileSize))
+    chunkCode = str(chunkX) + "-" + str(chunkY)
+
+    # Generate new chunks if we moved
+    if not calculatedX == oldX:
+        oldX = calculatedX
+        checkAndGenerateChunks(calculatedX, calculatedY, chunkX, chunkY, chunkCode)
+
+    if not calculatedY == oldY:
+        oldY = calculatedY
+        checkAndGenerateChunks(calculatedX, calculatedY, chunkX, chunkY, chunkCode)
 
     offsetX = round(-calculatedX % tileSize)
     offsetY = round(calculatedY % tileSize / 1.5)
     
+    # Draw ground tiles
     for tileX in range(-3, round(window.width / tileSize * 2) + 1):
         for tileY in range(-2, round(window.height / tileSize * 1.5) + 1):
             tileWorldX = tileX / 2 + math.ceil(calculatedX / tileSize)
@@ -318,6 +364,35 @@ def drawGame():
 
             sprite.draw() # Draw sprite
 
+    # Draw chunk structures like ores
+    if chunkCode in chunksGenerated:
+        for structureX in range(chunkSizeX):
+            for structureY in range(chunkSizeY):
+                chunkStructureWorldX = round(structureX / 2 + math.ceil(calculatedX / tileSize))
+                chunkStructureWorldY = round(structureY - math.ceil(calculatedY / tileSize))
+
+                if(chunkStructureWorldX < 0 or chunkStructureWorldX >= len(chunksGenerated[chunkCode])):
+                    continue
+                if(chunkStructureWorldY < 0 or chunkStructureWorldY >= len(chunksGenerated[chunkCode][chunkStructureWorldX])):
+                    continue
+
+                chunkStructure = chunksGenerated[chunkCode][chunkStructureWorldX][chunkStructureWorldY]
+
+                if not chunkStructure == 0:
+                    chunkStructureData = chunkStructures[chunkStructure]
+
+                    sprite = pyglet.sprite.Sprite(img = chunkStructureData["image"])
+                    sprite.x = structureX * tileSize / 2 + offsetX
+                    if tileX % 2 == 0:
+                        sprite.y = structureY * tileSize / 1.5 + offsetY
+                    else:
+                        sprite.y = structureY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+                    sprite.scale = tileSize / 1024
+
+                    sprite.draw() # Draw sprite
+
+
+    # Draw static stuff like the rocket that are under the player
     for staticAsset in staticAssetList:
         if calculatedY >= staticAsset["y"]:
             drawStaticAsset(staticAsset, calculatedX, calculatedY)
@@ -340,12 +415,43 @@ def drawGame():
 
     playerImage.draw()
 
-    
+    # Draw static stuff like the rocket that are over the player
     for staticAsset in staticAssetList:
         if calculatedY < staticAsset["y"]:
             drawStaticAsset(staticAsset, calculatedX, calculatedY)
 
+    # Draw the oxygen bars, inventory, etc.
     drawUI()
+
+oldChunkX = 0
+oldChunkY = 0
+
+def checkAndGenerateChunks(calculatedX, calculatedY, chunkX, chunkY, chunkCode):
+    global oldChunkX, oldChunkY
+
+    if (not chunkX == oldChunkX) or (not chunkY == oldChunkY):
+        oldChunkX = chunkX
+        oldChunkY = chunkY
+
+        if not chunkCode in chunksGenerated:
+            chunksGenerated[chunkCode] = generateChunk(chunkX, chunkY)
+
+# TODO: Make this psudorandom rather than 100% random
+def generateChunk(chunkX, chunkY):
+    result = []
+
+    for tileX in range(chunkSizeX):
+        result.append([])
+        for tileY in range(chunkSizeY):
+            if random.random() > 0.8:
+                chunkStructure = random.choice(list(chunkStructures.keys()))
+                result[tileX].append(chunkStructure)
+            else:
+                result[tileX].append(0)
+
+    print(result)
+
+    return result
 
 globalAnimationFrame = 0
 
@@ -437,16 +543,12 @@ def on_key_press(symbol, modifiers):
 
     if gameState == "running":
         if symbol == key.LEFT:
-            print("The left arrow key was pressed.")
             keysPressed["left"] = True
         elif symbol == key.RIGHT:
-            print("The right arrow key was pressed.")
             keysPressed["right"] = True
         elif symbol == key.UP:
-            print("The up arrow key was pressed.")
             keysPressed["up"] = True
         elif symbol == key.DOWN:
-            print("The down arrow key was pressed.")
             keysPressed["down"] = True
     elif gameState == "intro":
         if symbol == key.SPACE:
@@ -456,16 +558,12 @@ def on_key_press(symbol, modifiers):
 def on_key_release(symbol, modifiers):
     if gameState == "running":
         if symbol == key.LEFT:
-            print("The left arrow key was released.")
             keysPressed["left"] = False
         elif symbol == key.RIGHT:
-            print("The right arrow key was released.")
             keysPressed["right"] = False
         elif symbol == key.UP:
-            print("The up arrow key was released.")
             keysPressed["up"] = False
         elif symbol == key.DOWN:
-            print("The down arrow key was released.")
             keysPressed["down"] = False
 
 from pyglet.window import mouse
