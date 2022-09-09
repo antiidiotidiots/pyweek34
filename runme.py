@@ -589,6 +589,7 @@ def drawGame():
         for give in closestOreData["data"]["gives"]:
             amount = random.randint(give["min"], give["max"])
             giveItem(give["item"], amount)
+        BreakTime = 0
 
 def giveItem(item, amount):
     global inventoryItems
@@ -920,6 +921,35 @@ def drawInventory():
     if backpackOpened == True:
         for backpackSlot in range(backpackSlots):
             drawSlot(5, (slotSize + 5) * (1 + backpackSlot) + 5, (80, 80, 80), inventoryItems[2 + backpackSlot], str(backpackSlot + 3))
+
+        fabricatingMenu = shapes.Rectangle(
+            x = (slotSize + 10), 
+            y = (slotSize + 10),
+            width = (slotSize + 5) * 6 - 5,
+            height = (slotSize + 5) * 4 - 5,
+            color = ( 80, 80, 80 )
+        )
+        fabricatingMenu.opacity = 200
+        fabricatingMenu.draw()
+        
+        labelBackground = shapes.Rectangle(
+            x = (slotSize + 10), 
+            y = (slotSize + 5) * 5,
+            width = 230,
+            height = 25,
+            color = ( 80, 80, 80 )
+        )
+        labelBackground.opacity = 200
+        labelBackground.draw()
+
+        fabricationLabel = pyglet.text.Label("Fabrication",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = (slotSize + 10) + 5,
+            y = (slotSize + 5) * 5 + 20,
+            color = (255, 255, 255, 255),
+            anchor_x = "left", anchor_y = "top")
+        fabricationLabel.draw()
 
 def drawSlot(slotX, slotY, color, item, label):
     slotSquare = shapes.Rectangle(
