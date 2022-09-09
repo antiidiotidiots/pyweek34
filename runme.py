@@ -22,11 +22,40 @@ oxygen = 1
 oxygenMinutes = 20
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
+backpackSlots = 4
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": 0, "quantity": 1 } ]
+
+selectedHand = 1
+
+for _ in range(backpackSlots):
+    inventoryItems.append({ "item": 0, "quantity": 1 })
+
+itemTypes = {
+    "pickaxe": {
+        "path": "pickaxe.png",
+        "name": "Pickaxe",
+        "canMine": True
+    },
+    "ironChunks": {
+        "path": "ironChunks.png",
+        "name": "Iron Chunks",
+        "canMine": False
+    },
+    "carbonChunks": {
+        "path": "carbonChunks.png",
+        "name": "Carbon Chunks",
+        "canMine": False
+    }
+}
+
+for itemType in itemTypes:
+    itemTypes[itemType]["image"] = pyglet.image.load("assets/images/items/" + itemTypes[itemType]["path"])
+
 gameState = "intro"
 introElapsed = 0
 
-pyglet.font.add_file("assets/fonts/Poppins-Regular.ttf")
-pyglet.font.load("Poppins")
+pyglet.font.add_file("assets/fonts/PressStart2P-Regular.ttf")
+pyglet.font.load("Press Start 2P")
 
 tileNames = {
     "mars": "assets/images/tiles/mars.png",
@@ -54,6 +83,12 @@ for playerWalkingState in playerWalkingStates:
 tileSize = 256 # Pixels?
 
 walkingFrame = 0
+
+UIImageFiles = ["backpackOpen", "backpackClosed"]
+UIImages = {}
+
+for UIImage in UIImageFiles:
+    UIImages[UIImage] = pyglet.image.load("assets/images/UI/" + UIImage + ".png")
 
 staticAssets = [
     {
@@ -160,20 +195,33 @@ chunkStructures = {
         "path": "ironOre.png",
         "breakTime": 3,
         "gives": [
-            {"type": "ironChunk", "min": "1", "max": "3"}
+            {"item": "ironChunks", "min": 1, "max": 3}
         ]
     },
     "carbonOre": {
         "path": "carbonOre.png",
         "breakTime": 2,
         "gives": [
-            {"type": "carbonChunk", "min": "2", "max": "5"}
+            {"item": "carbonChunks", "min": 2, "max": 5}
         ]
     }
 }
 
 for chunkStructure in chunkStructures:
     chunkStructures[chunkStructure]["image"] = pyglet.image.load("assets/images/structures/" + chunkStructures[chunkStructure]["path"])
+
+UIHintFiles = {
+    "ToMine": "ToMine.png",
+    "ToBreak": "ToBreak.png"
+}
+
+UIHints = {}
+
+for UIHintFile in UIHintFiles:
+    UIHints[UIHintFile] = pyglet.image.load("assets/images/UI/" + UIHintFiles[UIHintFile])
+
+LMBHeld = False
+BreakTime = 0
 
 @window.event
 def on_draw():
@@ -193,7 +241,7 @@ def drawIntro():
 
     if introElapsed < 10:
         label = pyglet.text.Label(str(math.ceil(5 - introElapsed / 2)),
-            font_name = "Poppins",
+            font_name = "Press Start 2P",
             font_size = 200,
             x = window.width / 2,
             y = window.height / 2,
@@ -241,7 +289,7 @@ def drawIntro():
 
         
     label = pyglet.text.Label("Space to skip",
-        font_name = "Poppins",
+        font_name = "Press Start 2P",
         font_size = 20,
         x = window.width / 2,
         y = 0,
@@ -317,7 +365,7 @@ oldX = 0
 oldY = 0
 
 def drawGame():
-    global walkingFrame, oxygen, oldX, oldY
+    global walkingFrame, oxygen, oldX, oldY, BreakTime
 
     window.clear()
     
@@ -347,6 +395,21 @@ def drawGame():
     structures = pyglet.graphics.OrderedGroup(3)
 
     sprites = []
+
+    miningOres = False
+
+    if inventoryItems[selectedHand - 1]["item"] in itemTypes:
+        if itemTypes[inventoryItems[selectedHand - 1]["item"]]["canMine"] == True:
+            miningOres = True
+
+    closestOre = 100000
+    closestOreData = {
+        "x": 0,
+        "y": 0,
+        "screenX": 0,
+        "screenY": 0,
+        "data": 0
+    }
     
     # # Draw ground tiles
     for tileX in range(-3, round(window.width / tileSize * 2) + 1):
@@ -359,6 +422,7 @@ def drawGame():
                 selectedImage = tiles["marsLight"]
 
             groundGroup = ground
+            
             if (tileWorldX % 2 == 0 and not tileWorldY % 2 == 0):
                 groundGroup = ground2
             if (tileWorldX % 2 == 0 and tileWorldY % 2 == 0):
@@ -383,11 +447,28 @@ def drawGame():
                     structureData = chunkStructures[chunkStrucutre]
 
                     sprite = pyglet.sprite.Sprite(img = structureData["image"], batch = batch, group = structures)
-                    sprite.x = tileX * tileSize / 2 + offsetX
+                    structureX = tileX * tileSize / 2 + offsetX
+                    structureY = 0
                     if tileX % 2 == 0:
-                        sprite.y = tileY * tileSize / 1.5 + offsetY
+                        structureY = tileY * tileSize / 1.5 + offsetY
                     else:
-                        sprite.y = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+                        structureY = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+
+                    if miningOres == True:
+                        distanceToOre = distance(structureX + tileSize / 2, structureY + tileSize / 2, window.width / 2, window.height / 2)
+                        if distanceToOre < closestOre:
+                            closestOre = distanceToOre
+                            closestOreData["x"] = tileWorldX
+                            closestOreData["y"] = tileWorldY
+
+                            closestOreData["screenX"] = structureX
+                            closestOreData["screenY"] = structureY
+
+                            closestOreData["data"] = structureData
+
+                    sprite.x = structureX
+                    sprite.y = structureY
+
                     sprite.scale = tileSize / 2048
 
                     sprites.append(sprite)
@@ -424,6 +505,117 @@ def drawGame():
 
     # Draw the oxygen bars, inventory, etc.
     drawUI()
+
+    # Triangle
+    # pyglet.graphics.draw_indexed(3, pyglet.gl.GL_TRIANGLES,
+    #     [0, 1, 2],
+    #     ('v2i', (100, 100,
+    #             150, 100,
+    #             150, 150)),
+    #     ('c3B', (100, 100, 100, 100, 100, 100, 100, 100, 100))
+    # )
+    # pyglet.graphics.draw_indexed(3, pyglet.gl.GL_TRIANGLES,
+    #     [0, 1, 2],
+    #     ('v2i', (106, 102,
+    #             148, 102,
+    #             148, 144)),
+    #     ('c3B', (255, 100, 100, 255, 0, 0, 255, 100, 100))
+    # )
+
+    rocketDirectionColor = ( 150, 150, 150 )
+    if(globalAnimationFrame % 6 >= 3):
+        rocketDirectionColor = ( 255, 100, 100 )
+    
+    rocketDirectionVector = {
+        "x": staticAssetList[0]["x"] - calculatedX,
+        "y": staticAssetList[0]["y"] - calculatedY
+    }
+
+    normalizedRocketDirectionVector = rocketDirectionVector
+
+    rocketDirectionVectorMagnitude = math.sqrt(-rocketDirectionVector["x"] * -rocketDirectionVector["x"] + -rocketDirectionVector["y"] * -rocketDirectionVector["y"])
+
+    normalizedRocketDirectionVector["x"] = normalizedRocketDirectionVector["x"] / rocketDirectionVectorMagnitude
+    normalizedRocketDirectionVector["y"] = normalizedRocketDirectionVector["y"] / rocketDirectionVectorMagnitude
+
+    towardsRocket = shapes.Rectangle(
+        x = window.width / 2 + (normalizedRocketDirectionVector["x"] * 200),
+        y = window.height / 2 - (normalizedRocketDirectionVector["y"] * 200),
+        width = 20,
+        height = 20,
+        color = rocketDirectionColor
+    )
+    towardsRocket.draw()
+    
+    
+    if closestOre != 100000:
+        if closestOre < 300:
+            hintX = closestOreData["screenX"] + tileSize / 4
+            hintY = closestOreData["screenY"] + tileSize / 2
+
+            ShowUIHint(hintX, hintY, "ToMine")
+
+            bar = shapes.Rectangle(
+                x = hintX - 250,
+                y = hintY - 250,
+                width = 500,
+                height = 50,
+                color = ( 100, 100, 100 )
+            )
+            bar.opacity = 150
+            bar.draw()
+
+            filled = shapes.Rectangle(
+                x = hintX - 245,
+                y = hintY - 245,
+                width = 490 * (BreakTime / closestOreData["data"]["breakTime"]),
+                height = 40,
+                color = ( 25, 100, 25 )
+            )
+            filled.opacity = 150
+            filled.draw()
+        else:
+            BreakTime = 0
+    else:
+        BreakTime = 0
+
+    if closestOreData["data"] == 0:
+        closestOreData["data"] = {
+            "breakTime": 1
+        }
+
+    if BreakTime >= closestOreData["data"]["breakTime"]:
+        structuresGenerated[str(closestOreData["x"]) + "_" + str(closestOreData["y"])] = 0
+        for give in closestOreData["data"]["gives"]:
+            amount = random.randint(give["min"], give["max"])
+            giveItem(give["item"], amount)
+
+def giveItem(item, amount):
+    global inventoryItems
+
+    if item in itemTypes:
+        for inventorySlot in inventoryItems:
+            if inventorySlot["item"] == 0:
+                inventorySlot["item"] = item
+                inventorySlot["quantity"] = amount
+                break
+            elif inventorySlot["item"] == item:
+                inventorySlot["quantity"] += amount
+                break
+
+def distance(x1, y1, x2, y2):
+    return math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+
+def ShowUIHint(x, y, UIHint):
+    if UIHint in UIHints:
+        UIHintImage = UIHints[UIHint]
+        sprite = pyglet.sprite.Sprite(img = UIHintImage)
+        sprite.x = x - 250
+        sprite.y = y - 200
+
+        sprite.scale = 500 / 2176
+
+        sprite.draw()
 
 def checkAndGenerateStructures(calculatedX, calculatedY, structureX, structureY):
     for structureX in range(-3, round(window.width / tileSize * 2) + 1):
@@ -499,10 +691,10 @@ def drawUI():
         filled.draw()
 
         label = pyglet.text.Label(UIBar["name"],
-            font_name = "Poppins",
+            font_name = "Press Start 2P",
             font_size = 25,
             x = window.width - 495,
-            y = window.height - 5 - (55 * (index - 1)),
+            y = window.height - 15 - (55 * (index - 1)),
             color = (255, 255, 255, 255),
             anchor_x = "left", anchor_y = "top")
         label.draw()
@@ -510,25 +702,31 @@ def drawUI():
         if UIBar["countdown"]:
             countdownTime = "{:0>2d}".format(math.floor(UIBar["countdownTime"] / 60)) + ":" + "{:0>2d}".format(math.floor(UIBar["countdownTime"]) % 60)
             countdown = pyglet.text.Label(countdownTime,
-                font_name = "Poppins",
+                font_name = "Press Start 2P",
                 font_size = 25,
                 x = window.width - 10,
-                y = window.height - 5 - (55 * (index - 1)),
+                y = window.height - 15 - (55 * (index - 1)),
                 color = (255, 255, 255, 255),
                 anchor_x = "right", anchor_y = "top")
             countdown.draw()
+    
+    drawInventory()
 
 
 keysPressed = {
     "left": False,
     "right": False,
     "up": False,
-    "down": False
+    "down": False,
+    "w": False,
+    "a": False,
+    "s": False,
+    "d": False
 }
 
 @window.event
 def on_key_press(symbol, modifiers):
-    global gameState
+    global gameState, backpackOpened, selectedHand
 
     if gameState == "running":
         if symbol == key.LEFT:
@@ -539,9 +737,40 @@ def on_key_press(symbol, modifiers):
             keysPressed["up"] = True
         elif symbol == key.DOWN:
             keysPressed["down"] = True
+        elif symbol == key.B:
+            backpackOpened = not backpackOpened
+        elif symbol == 49: # numbers 1 through 6
+            selectedHand = 1
+        elif symbol == 50:
+            selectedHand = 2
+        elif symbol == 51:
+            swapWithSelectedHand(3)
+        elif symbol == 52:
+            swapWithSelectedHand(4)
+        elif symbol == 53:
+            swapWithSelectedHand(5)
+        elif symbol == 54:
+            swapWithSelectedHand(6)
+        elif symbol == key.W:
+            keysPressed["w"] = True
+        elif symbol == key.A:
+            keysPressed["a"] = True
+        elif symbol == key.S:
+            keysPressed["s"] = True
+        elif symbol == key.D:
+            keysPressed["d"] = True
     elif gameState == "intro":
         if symbol == key.SPACE:
             gameState = "running"
+
+def swapWithSelectedHand(swapWith):
+    global inventoryItems
+
+    print(swapWith)
+
+    temp = inventoryItems[swapWith - 1]
+    inventoryItems[swapWith - 1] = inventoryItems[selectedHand - 1]
+    inventoryItems[selectedHand - 1] = temp
 
 @window.event
 def on_key_release(symbol, modifiers):
@@ -554,13 +783,33 @@ def on_key_release(symbol, modifiers):
             keysPressed["up"] = False
         elif symbol == key.DOWN:
             keysPressed["down"] = False
+        elif symbol == key.W:
+            keysPressed["w"] = False
+        elif symbol == key.A:
+            keysPressed["a"] = False
+        elif symbol == key.S:
+            keysPressed["s"] = False
+        elif symbol == key.D:
+            keysPressed["d"] = False
 
 from pyglet.window import mouse
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
-    if button == mouse.LEFT:
-        print("The left mouse button was pressed.")
+    global LMBHeld
+
+    if gameState == "running":
+        if button == mouse.LEFT:
+            LMBHeld = True
+
+@window.event
+def on_mouse_release(x, y, button, modifiers):
+    global LMBHeld, BreakTime
+    
+    if gameState == "running":
+        if button == mouse.LEFT:
+            LMBHeld = False
+            BreakTime = 0
 
 # Logs all events that happen
 # event_logger = pyglet.window.event.WindowEventLogger()
@@ -585,7 +834,7 @@ def update(dt):
         timeSinceAudioPlayed += 1 / framerate
 
 def updateGame(dt):
-    global x, y, xMomentum, yMomentum, oxygen
+    global x, y, xMomentum, yMomentum, oxygen, BreakTime
 
     movementSpeed = 60 * dt
 
@@ -593,13 +842,13 @@ def updateGame(dt):
 
     oxygen -= oxygenDepletionRate * dt
 
-    if(keysPressed["left"]):
+    if keysPressed["left"] or keysPressed["a"]:
         xMomentum -= movementSpeed
-    if(keysPressed["right"]):
+    if keysPressed["right"] or keysPressed["d"]:
         xMomentum += movementSpeed
-    if(keysPressed["up"]):
+    if keysPressed["up"] or keysPressed["w"]:
         yMomentum -= movementSpeed
-    if(keysPressed["down"]):
+    if keysPressed["down"] or keysPressed["s"]:
         yMomentum += movementSpeed
 
     x += xMomentum
@@ -612,6 +861,107 @@ def updateGame(dt):
         xMomentum = 0
     if math.fabs(yMomentum) < 0.5:
         yMomentum = 0
+
+    if LMBHeld == True:
+        BreakTime += 1 * dt
+
+backpackOpened = False
+
+slotSize = 85
+backpackOpened = False
+
+def drawInventory():
+    global backpackOpened
+
+    backpackColor = ( 100, 100, 100 )
+    if backpackOpened == True:
+        backpackColor = ( 80, 80, 80 )
+    
+    backpackIcon = shapes.Rectangle(
+        x = 5,
+        y = 5,
+        width = slotSize,
+        height = slotSize,
+        color = backpackColor
+    )
+    backpackIcon.opacity = 200
+    backpackIcon.draw()
+
+    backpackState = "backpackClosed"
+    if backpackOpened == True:
+        backpackState = "backpackOpen"
+    
+    backpackImage = pyglet.sprite.Sprite(img = UIImages[backpackState])
+    backpackImage.x = 5
+    backpackImage.y = 5
+
+    backpackImage.scale = slotSize / 512
+    backpackImage.draw()
+
+    backpackLabel = pyglet.text.Label("B",
+        font_name = "Press Start 2P",
+        font_size = 15,
+        x = 10,
+        y = slotSize,
+        color = (255, 255, 255, 255),
+        anchor_x = "left", anchor_y = "top")
+    backpackLabel.draw()
+    
+    slotOneColor = (100, 100, 100)
+    if selectedHand == 1:
+        slotOneColor = (150, 150, 150)
+    drawSlot(slotSize + 10, 5, slotOneColor, inventoryItems[0], "1")
+
+    slotTwoColor = (100, 100, 100)
+    if selectedHand == 2:
+        slotTwoColor = (150, 150, 150)
+    drawSlot(slotSize * 2 + 15, 5, slotTwoColor, inventoryItems[1], "2")
+
+    if backpackOpened == True:
+        for backpackSlot in range(backpackSlots):
+            drawSlot(5, (slotSize + 5) * (1 + backpackSlot) + 5, (80, 80, 80), inventoryItems[2 + backpackSlot], str(backpackSlot + 3))
+
+def drawSlot(slotX, slotY, color, item, label):
+    slotSquare = shapes.Rectangle(
+        x = slotX, 
+        y = slotY,
+        width = slotSize,
+        height = slotSize,
+        color = color
+    )
+    slotSquare.opacity = 200
+    slotSquare.draw()
+
+    if item["item"] in itemTypes:
+        itemData = itemTypes[item["item"]]
+
+        itemImage = pyglet.sprite.Sprite(img = itemData["image"])
+        itemImage.x = slotX
+        itemImage.y = slotY
+
+        itemImage.scale = slotSize / 1024
+        itemImage.draw()
+        
+    slotLabel = pyglet.text.Label(label,
+        font_name = "Press Start 2P",
+        font_size = 15,
+        x = slotX + 5,
+        y = slotY + slotSize - 5,
+        color = (255, 255, 255, 255),
+        anchor_x = "left", anchor_y = "top")
+    slotLabel.draw()
+
+    amount = item["quantity"]
+    if amount > 1:
+        slotAmount = pyglet.text.Label(str(amount),
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = slotX + slotSize - 5,
+            y = slotY - 5,
+            color = (255, 255, 255, 255),
+            anchor_x = "right", anchor_y = "bottom")
+        slotAmount.draw()
+
 
 pyglet.clock.schedule_interval(update, 1 / framerate)
 
