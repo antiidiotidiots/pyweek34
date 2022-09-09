@@ -1,5 +1,3 @@
-import chunk
-from tkinter import Y
 import pyglet
 from perlin_noise import PerlinNoise
 import math
@@ -45,11 +43,32 @@ itemTypes = {
         "path": "carbonChunks.png",
         "name": "Carbon Chunks",
         "canMine": False
+    },
+    "drill": {
+        "path": "drill.png",
+        "name": "Drill",
+        "canMine": False
     }
 }
 
 for itemType in itemTypes:
     itemTypes[itemType]["image"] = pyglet.image.load("assets/images/items/" + itemTypes[itemType]["path"])
+
+fabricationRecipes = [
+    {
+        "inputs": [
+            { "item": "ironChunks", "quantity": 6 }
+        ],
+        "output": { "item": "smelter", "quantity": 1 }
+    },
+    {
+        "inputs": [
+            { "item": "ironChunks", "quantity": 1 },
+            { "item": "carbonChunks", "quantity": 1 }
+        ],
+        "output": { "item": "drill", "quantity": 1 }
+    }
+]
 
 gameState = "intro"
 introElapsed = 0
@@ -194,6 +213,8 @@ chunkStructures = {
     "ironOre": {
         "path": "ironOre.png",
         "breakTime": 3,
+        "isOre": True,
+        "animated": False,
         "gives": [
             {"item": "ironChunks", "min": 1, "max": 3}
         ]
@@ -201,14 +222,29 @@ chunkStructures = {
     "carbonOre": {
         "path": "carbonOre.png",
         "breakTime": 2,
+        "isOre": True,
+        "animated": False,
         "gives": [
             {"item": "carbonChunks", "min": 2, "max": 5}
         ]
+    },
+    "drill": {
+        "path": "drill.png",
+        "breakTime": 3,
+        "isOre": False,
+        "animated": True,
+        "columns": 14
     }
 }
 
 for chunkStructure in chunkStructures:
-    chunkStructures[chunkStructure]["image"] = pyglet.image.load("assets/images/structures/" + chunkStructures[chunkStructure]["path"])
+    if chunkStructures[chunkStructure]["animated"]:
+        chunkStructures[chunkStructure]["image"] = pyglet.image.ImageGrid(
+            pyglet.image.load("assets/images/structures/" + chunkStructures[chunkStructure]["path"]),
+            1, chunkStructures[chunkStructure]["columns"]
+        )
+    else:
+        chunkStructures[chunkStructure]["image"] = pyglet.image.load("assets/images/structures/" + chunkStructures[chunkStructure]["path"])
 
 UIHintFiles = {
     "ToMine": "ToMine.png",
@@ -364,8 +400,10 @@ def drawConsole():
 oldX = 0
 oldY = 0
 
+LMBClicked = False
+
 def drawGame():
-    global walkingFrame, oxygen, oldX, oldY, BreakTime
+    global walkingFrame, oxygen, oldX, oldY, BreakTime, LMBClicked
 
     window.clear()
     
@@ -410,6 +448,8 @@ def drawGame():
         "screenY": 0,
         "data": 0
     }
+
+    closestTileMouse = 100000
     
     # # Draw ground tiles
     for tileX in range(-3, round(window.width / tileSize * 2) + 1):
@@ -446,7 +486,13 @@ def drawGame():
                 if chunkStrucutre in chunkStructures:
                     structureData = chunkStructures[chunkStrucutre]
 
-                    sprite = pyglet.sprite.Sprite(img = structureData["image"], batch = batch, group = structures)
+                    chunkStructureImage = None
+                    if structureData["animated"]:
+                        chunkStructureImage = structureData["image"][globalAnimationFrame % structureData["columns"]]
+                    else:
+                        chunkStructureImage = structureData["image"]
+
+                    sprite = pyglet.sprite.Sprite(img = chunkStructureImage, batch = batch, group = structures)
                     structureX = tileX * tileSize / 2 + offsetX
                     structureY = 0
                     if tileX % 2 == 0:
@@ -591,6 +637,8 @@ def drawGame():
             giveItem(give["item"], amount)
         BreakTime = 0
 
+    LMBClicked = False
+
 def giveItem(item, amount):
     global inventoryItems
 
@@ -627,10 +675,10 @@ def checkAndGenerateStructures(calculatedX, calculatedY, structureX, structureY)
             if not structureCode in structuresGenerated:
                 structuresGenerated[structureCode] = generateStructure(structureWorldX, structureWorldY)
 
-# TODO: Make this psudorandom rather than 100% random
+# TODO: Make this psudorandom depending on a seed rather than 100% random
 def generateStructure(structureX, structureY):
     if random.random() > 0.98:
-        chunkStructure = random.choice(list(chunkStructures.keys()))
+        chunkStructure = random.choice(["carbonOre", "ironOre"])
         return chunkStructure
     else:
         return 0
@@ -767,8 +815,6 @@ def on_key_press(symbol, modifiers):
 def swapWithSelectedHand(swapWith):
     global inventoryItems
 
-    print(swapWith)
-
     temp = inventoryItems[swapWith - 1]
     inventoryItems[swapWith - 1] = inventoryItems[selectedHand - 1]
     inventoryItems[selectedHand - 1] = temp
@@ -797,11 +843,12 @@ from pyglet.window import mouse
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
-    global LMBHeld
+    global LMBHeld, LMBClicked
 
     if gameState == "running":
         if button == mouse.LEFT:
             LMBHeld = True
+            LMBClicked = True
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
@@ -811,6 +858,16 @@ def on_mouse_release(x, y, button, modifiers):
         if button == mouse.LEFT:
             LMBHeld = False
             BreakTime = 0
+
+mouseX = 0
+mouseY = 0
+
+@window.event
+def on_mouse_motion(x, y, movementX, movementY):
+    global mouseX, mouseY
+
+    mouseX = x
+    mouseY = y
 
 # Logs all events that happen
 # event_logger = pyglet.window.event.WindowEventLogger()
@@ -866,10 +923,10 @@ def updateGame(dt):
     if LMBHeld == True:
         BreakTime += 1 * dt
 
-backpackOpened = False
-
 slotSize = 85
 backpackOpened = False
+
+fabricatingMenuSelected = 0
 
 def drawInventory():
     global backpackOpened
@@ -885,7 +942,12 @@ def drawInventory():
         height = slotSize,
         color = backpackColor
     )
-    backpackIcon.opacity = 200
+    if mouseX > 5 and mouseY > 5 and mouseX < 5 + slotSize and mouseY < 5 + slotSize:
+        backpackIcon.opacity = 255
+        if LMBClicked:
+            backpackOpened = not backpackOpened
+    else:
+        backpackIcon.opacity = 200
     backpackIcon.draw()
 
     backpackState = "backpackClosed"
@@ -951,7 +1013,98 @@ def drawInventory():
             anchor_x = "left", anchor_y = "top")
         fabricationLabel.draw()
 
-def drawSlot(slotX, slotY, color, item, label):
+        index = 0
+        for fabricationRecipe in fabricationRecipes:
+            drawSlot(slotSize + 15 + ((slotSize + 5) * index), (slotSize + 5) * 4, ( 100, 100, 100 ), fabricationRecipe["output"], "", selectFabricationRecipe, fabricationRecipe)
+            index += 1
+
+        if not fabricatingMenuSelected == 0:
+            index = 0
+            canFabricate = True
+            for fabricationInput in fabricatingMenuSelected["inputs"]:
+                hasMaterialsColor = ( 150, 80, 80 )
+                if playerHasMaterials(fabricationInput) == True:
+                    hasMaterialsColor = ( 80, 150, 80 )
+                else:
+                    canFabricate = False
+                drawSlot(slotSize + 15 + ((slotSize + 5) * index), (slotSize + 5) * 3 - 10, hasMaterialsColor, fabricationInput, "")
+                index += 1
+
+            if mouseX > slotSize + 15 and mouseX < slotSize + 15 + (slotSize + 5) * 6 - 15 and mouseY > (slotSize + 5) + 10 and mouseY < (slotSize + 5) + 10 + 30:
+                if canFabricate == True:
+                    fabricateButtonColor = ( 120, 170, 120 )
+                else:
+                    fabricateButtonColor = ( 170, 120, 120 )
+                
+                if LMBClicked:
+                    if canFabricate == True:
+                        for fabricationInput in fabricatingMenuSelected["inputs"]:
+                            item = fabricationInput["item"]
+                            quantity = fabricationInput["quantity"]
+
+                            removeItem(item, quantity)
+                        giveItem(fabricatingMenuSelected["output"]["item"], fabricatingMenuSelected["output"]["quantity"])
+            else:
+                if canFabricate == True:
+                    fabricateButtonColor = ( 100, 150, 100 )
+                else:
+                    fabricateButtonColor = ( 150, 100, 100 )
+
+            fabricateButtonRectangle = shapes.Rectangle(
+                x = slotSize + 15, 
+                y = (slotSize + 5) + 10,
+                width = (slotSize + 5) * 6 - 15,
+                height = 30,
+                color = fabricateButtonColor
+            )
+            fabricateButtonRectangle.draw()
+
+            fabricateButtonLabel = pyglet.text.Label("Fabricate",
+                font_name = "Press Start 2P",
+                font_size = 15,
+                x = (slotSize + 5) * 4 + 10,
+                y = (slotSize + 5) + 5,
+                color = (255, 255, 255, 255),
+                anchor_x = "center", anchor_y = "bottom")
+            fabricateButtonLabel.draw()
+
+def removeItem(item, quantity):
+    quantityLeft = quantity
+    for slotItem in inventoryItems:
+        if slotItem["item"] == item:
+            if slotItem["quantity"] > quantityLeft:
+                slotItem["quantity"] -= quantityLeft
+                quantityLeft = 0
+                break
+            else:
+                quantityLeft -= slotItem["quantity"]
+                slotItem["quantity"] = 1
+                slotItem["item"] = 0
+                
+
+def playerHasMaterials(materials):
+    playerItems = {}
+    for slotContent in inventoryItems:
+        item = slotContent["item"]
+        quantity = slotContent["quantity"]
+
+        if item in playerItems:
+            playerItems[item] += quantity
+        else:
+            playerItems[item] = quantity
+
+    if materials["item"] in playerItems:
+        if playerItems[materials["item"]] >= materials["quantity"]:
+            return True
+
+    return False
+
+def selectFabricationRecipe(recipe):
+    global fabricatingMenuSelected
+
+    fabricatingMenuSelected = recipe
+
+def drawSlot(slotX, slotY, color, item, label, clickCallback = None, callbackParameters = None):
     slotSquare = shapes.Rectangle(
         x = slotX, 
         y = slotY,
@@ -959,7 +1112,16 @@ def drawSlot(slotX, slotY, color, item, label):
         height = slotSize,
         color = color
     )
-    slotSquare.opacity = 200
+    if mouseX > slotX and mouseY > slotY and mouseX < slotX + slotSize and mouseY < slotY + slotSize:
+        slotSquare.opacity = 255
+        if LMBClicked == True:
+            if not clickCallback == None:
+                if callbackParameters == None:
+                    clickCallback()
+                else:
+                    clickCallback(callbackParameters)
+    else:
+        slotSquare.opacity = 200
     slotSquare.draw()
 
     if item["item"] in itemTypes:
@@ -991,7 +1153,6 @@ def drawSlot(slotX, slotY, color, item, label):
             color = (255, 255, 255, 255),
             anchor_x = "right", anchor_y = "bottom")
         slotAmount.draw()
-
 
 pyglet.clock.schedule_interval(update, 1 / framerate)
 
