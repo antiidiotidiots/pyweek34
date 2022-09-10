@@ -21,7 +21,7 @@ oxygenMinutes = 20
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 4
-inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": 0, "quantity": 1 } ]
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "drill", "quantity": 10 } ]
 
 selectedHand = 1
 
@@ -32,22 +32,26 @@ itemTypes = {
     "pickaxe": {
         "path": "pickaxe.png",
         "name": "Pickaxe",
-        "canMine": True
+        "canMine": True,
+        "canBuild": False
     },
     "ironChunks": {
         "path": "ironChunks.png",
         "name": "Iron Chunks",
-        "canMine": False
+        "canMine": False,
+        "canBuild": False
     },
     "carbonChunks": {
         "path": "carbonChunks.png",
         "name": "Carbon Chunks",
-        "canMine": False
+        "canMine": False,
+        "canBuild": False
     },
     "drill": {
         "path": "drill.png",
         "name": "Drill",
-        "canMine": False
+        "canMine": False,
+        "canBuild": True
     }
 }
 
@@ -63,8 +67,8 @@ fabricationRecipes = [
     },
     {
         "inputs": [
-            { "item": "ironChunks", "quantity": 1 },
-            { "item": "carbonChunks", "quantity": 1 }
+            { "item": "ironChunks", "quantity": 5 },
+            { "item": "carbonChunks", "quantity": 20 }
         ],
         "output": { "item": "drill", "quantity": 1 }
     }
@@ -109,6 +113,28 @@ UIImages = {}
 for UIImage in UIImageFiles:
     UIImages[UIImage] = pyglet.image.load("assets/images/UI/" + UIImage + ".png")
 
+miscImages = {
+    "place": {
+        "animated": True,
+        "path": "place.png",
+        "columns": 13
+    },
+    "noplace": {
+        "animated": True,
+        "path": "noplace.png",
+        "columns": 13
+    }
+}
+
+for miscImage in miscImages:
+    if miscImages[miscImage]["animated"]:
+        miscImages[miscImage]["image"] = pyglet.image.ImageGrid(
+            pyglet.image.load("assets/images/misc/" + miscImages[miscImage]["path"]),
+            1, miscImages[miscImage]["columns"]
+        )
+    else:
+        miscImages[miscImage]["image"] = pyglet.image.load("assets/images/misc/" + miscImages[miscImage]["path"])
+
 staticAssets = [
     {
         "animated": False,
@@ -122,6 +148,14 @@ staticAssets = [
         "path": "fire.png",
         "x": 75,
         "y": 300,
+        "columns": 3,
+        "scale": tileSize
+    },
+    {
+        "animated": True,
+        "path": "fire.png",
+        "x": 200,
+        "y": 250,
         "columns": 3,
         "scale": tileSize
     },
@@ -450,10 +484,16 @@ def drawGame():
     }
 
     closestTileMouse = 100000
+    closestTileMouseData = {
+        "worldX": 0,
+        "worldY": 0,
+        "screenX": 0,
+        "sceenY": 0
+    }
     
     # # Draw ground tiles
     for tileX in range(-3, round(window.width / tileSize * 2) + 1):
-        for tileY in range(-2, round(window.height / tileSize * 1.5) + 1):
+        for tileY in list(reversed(range(-2, round(window.height / tileSize * 1.5) + 1))):
             tileWorldX = tileX / 2 + math.ceil(calculatedX / tileSize)
             tileWorldY = tileY - math.ceil(calculatedY / tileSize)
 
@@ -463,28 +503,39 @@ def drawGame():
 
             groundGroup = ground
             
-            if (tileWorldX % 2 == 0 and not tileWorldY % 2 == 0):
+            if (tileWorldY % 2 == 0 and tileWorldX % 1 == 0):
                 groundGroup = ground2
-            if (tileWorldX % 2 == 0 and tileWorldY % 2 == 0):
+            elif (tileWorldY % 2 == 1 and tileWorldX % 1 == 0):
                 groundGroup = ground3
             
             sprite = pyglet.sprite.Sprite(img = selectedImage, batch = batch, group = groundGroup)
-            sprite.x = tileX * tileSize / 2 + offsetX
+            tileScreenX = tileX * tileSize / 2 + offsetX
             if tileX % 2 == 0:
-                sprite.y = tileY * tileSize / 1.5 + offsetY
+                tileScreenY = sprite.y = tileY * tileSize / 1.5 + offsetY
             else:
-                sprite.y = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+                tileScreenY = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+            sprite.x = tileScreenX
+            sprite.y = tileScreenY
             sprite.scale = tileSize / 1024
+            
+            distanceToTile = distance(tileScreenX + tileSize / 2, tileScreenY + tileSize / 2, mouseX, mouseY)
+            if distanceToTile < closestTileMouse:
+                closestTileMouse = distanceToTile
+                closestTileMouseData["worldX"] = tileWorldX
+                closestTileMouseData["worldY"] = tileWorldY
+
+                closestTileMouseData["screenX"] = tileScreenX
+                closestTileMouseData["screenY"] = tileScreenY
 
             sprites.append(sprite)
 
             tileStructureCode = str(tileWorldX) + "_" + str(tileWorldY)
 
             if tileStructureCode in structuresGenerated:
-                chunkStrucutre = structuresGenerated[tileStructureCode]
+                chunkStructure = structuresGenerated[tileStructureCode]
                 
-                if chunkStrucutre in chunkStructures:
-                    structureData = chunkStructures[chunkStrucutre]
+                if chunkStructure in chunkStructures:
+                    structureData = chunkStructures[chunkStructure]
 
                     chunkStructureImage = None
                     if structureData["animated"]:
@@ -499,6 +550,10 @@ def drawGame():
                         structureY = tileY * tileSize / 1.5 + offsetY
                     else:
                         structureY = tileY * tileSize / 1.5 + tileSize / 1.5 / 2 + offsetY
+                        
+                    if chunkStructure == "ironOre" or chunkStructure == "carbonOre":
+                        structureX += tileSize / 4
+                        structureY += tileSize / 8
 
                     if miningOres == True:
                         distanceToOre = distance(structureX + tileSize / 2, structureY + tileSize / 2, window.width / 2, window.height / 2)
@@ -520,6 +575,32 @@ def drawGame():
                     sprites.append(sprite)
 
     batch.draw()
+
+    if not closestTileMouse == 100000:
+        if inventoryItems[selectedHand - 1]["item"] in itemTypes:
+            if itemTypes[inventoryItems[selectedHand - 1]["item"]]["canBuild"]:
+                tileCode = str(closestTileMouseData["worldX"]) + "_" + str(closestTileMouseData["worldY"])
+
+                if tileCode in structuresGenerated:
+                    canPlace = structuresGenerated[tileCode] == 0
+                else:
+                    canPlace = True
+
+                if canPlace:
+                    sprite = pyglet.sprite.Sprite(img = miscImages["place"]["image"][globalAnimationFrame % 13])
+                else:
+                    sprite = pyglet.sprite.Sprite(img = miscImages["noplace"]["image"][globalAnimationFrame % 13])
+
+                sprite.x = closestTileMouseData["screenX"]
+                sprite.y = closestTileMouseData["screenY"]
+
+                sprite.scale = tileSize / 1024
+
+                sprite.draw()
+
+                if canPlace and LMBClicked:
+                    structuresGenerated[tileCode] = inventoryItems[selectedHand - 1]["item"]
+                    removeItem(inventoryItems[selectedHand - 1]["item"], 1)
 
     # Draw static stuff like the rocket that are under the player
     for staticAsset in staticAssetList:
