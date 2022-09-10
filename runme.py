@@ -7,7 +7,7 @@ from pyglet import shapes
 
 import random
 
-window = pyglet.window.Window(width = 1520, height = 680, resizable = True, caption="Stranded")
+window = pyglet.window.Window(fullscreen=True, caption="Stranded")
 
 x = 0
 y = 0
@@ -21,7 +21,7 @@ oxygenMinutes = 20
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 4
-inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "smelter", "quantity": 10 } ]
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "coilMaker", "quantity": 1 }, { "item": "copperBar", "quantity": 10000 } ]
 
 selectedHand = 1
 
@@ -38,6 +38,12 @@ itemTypes = {
     "ironChunks": {
         "path": "ironChunks.png",
         "name": "Iron Chunks",
+        "canMine": False,
+        "canBuild": False
+    },
+    "copperChunks": {
+        "path": "copperChunks.png",
+        "name": "Copper Chunks",
         "canMine": False,
         "canBuild": False
     },
@@ -58,6 +64,42 @@ itemTypes = {
         "name": "Smelter",
         "canMine": False,
         "canBuild": True
+    },
+    "crudeOil": {
+        "path": "crudeOil.png",
+        "name": "Crude Oil",
+        "canMine": False,
+        "canBuild": False
+    },
+    "copperWire": {
+        "path": "copperWire.png",
+        "name": "Copper Wire",
+        "canMine": False,
+        "canBuild": False
+    },
+    "ironBar": {
+        "path": "ironBar.png",
+        "name": "Iron Bar",
+        "canMine": False,
+        "canBuild": False
+    },
+    "copperBar": {
+        "path": "copperBar.png",
+        "name": "Copper Bar",
+        "canMine": False,
+        "canBuild": False
+    },
+    "solidFuel": {
+        "path": "solidFuel.png",
+        "name": "Solid Fuel",
+        "canMine": False,
+        "canBuild": False
+    },
+    "coilMaker": {
+        "path": "coilMaker.png",
+        "name": "Coil Maker",
+        "canMine": False,
+        "canBuild": True
     }
 }
 
@@ -74,9 +116,15 @@ fabricationRecipes = [
     {
         "inputs": [
             { "item": "ironChunks", "quantity": 5 },
-            { "item": "carbonChunks", "quantity": 20 }
+            { "item": "solidFuel", "quantity": 20 }
         ],
         "output": { "item": "drill", "quantity": 1 }
+    },
+    {
+        "inputs": [
+            { "item": "ironBar", "quantity": 10 }
+        ],
+        "output": { "item": "coilMaker", "quantity": 1 }
     }
 ]
 
@@ -128,6 +176,16 @@ miscImages = {
     "noplace": {
         "animated": True,
         "path": "noplace.png",
+        "columns": 13
+    },
+    "break": {
+        "animated": True,
+        "path": "break.png",
+        "columns": 13
+    },
+    "nobreak": {
+        "animated": True,
+        "path": "nobreak.png",
         "columns": 13
     }
 }
@@ -268,6 +326,15 @@ chunkStructures = {
             {"item": "carbonChunks", "min": 2, "max": 5}
         ]
     },
+    "copperOre": {
+        "path": "copperOre.png",
+        "breakTime": 3,
+        "isOre": True,
+        "animated": False,
+        "gives": [
+            {"item": "copperChunks", "min": 1, "max": 3}
+        ]
+    },
     "drill": {
         "path": "drill.png",
         "breakTime": 3,
@@ -277,6 +344,12 @@ chunkStructures = {
     },
     "smelter": {
         "path": "smelter.png",
+        "breakTime": 4,
+        "isOre": False,
+        "animated": False,
+    },
+    "coilMaker": {
+        "path": "coilMaker.png",
         "breakTime": 4,
         "isOre": False,
         "animated": False,
@@ -294,7 +367,8 @@ for chunkStructure in chunkStructures:
 
 UIHintFiles = {
     "ToMine": "ToMine.png",
-    "ToBreak": "ToBreak.png"
+    "ToBreak": "ToBreak.png",
+    "ToInteract": "ToInteract.png"
 }
 
 UIHints = {}
@@ -447,9 +521,13 @@ oldX = 0
 oldY = 0
 
 LMBClicked = False
+LMBReleased = False
+EPressed = False
+
+OpenGUIMenu = 0
 
 def drawGame():
-    global walkingFrame, oxygen, oldX, oldY, BreakTime, LMBClicked
+    global walkingFrame, oxygen, oldX, oldY, BreakTime, LMBClicked, LMBReleased, EPressed, OpenGUIMenu
 
     window.clear()
     
@@ -477,6 +555,8 @@ def drawGame():
     ground2 = pyglet.graphics.OrderedGroup(1)
     ground3 = pyglet.graphics.OrderedGroup(2)
     structures = pyglet.graphics.OrderedGroup(3)
+    structures2 = pyglet.graphics.OrderedGroup(4)
+    structures3 = pyglet.graphics.OrderedGroup(5)
 
     sprites = []
 
@@ -486,8 +566,8 @@ def drawGame():
         if itemTypes[inventoryItems[selectedHand - 1]["item"]]["canMine"] == True:
             miningOres = True
 
-    closestDestruct = 100000
-    closestDestructData = {
+    closestInteractable = 100000
+    closestInteractableData = {
         "x": 0,
         "y": 0,
         "screenX": 0,
@@ -554,8 +634,15 @@ def drawGame():
                         chunkStructureImage = structureData["image"][globalAnimationFrame % structureData["columns"]]
                     else:
                         chunkStructureImage = structureData["image"]
+                        
+                    structureGroup = structures
+                    
+                    if (tileWorldY % 2 == 0 and tileWorldX % 1 == 0):
+                        structureGroup = structures2
+                    elif (tileWorldY % 2 == 1 and tileWorldX % 1 == 0):
+                        structureGroup = structures3
 
-                    sprite = pyglet.sprite.Sprite(img = chunkStructureImage, batch = batch, group = structures)
+                    sprite = pyglet.sprite.Sprite(img = chunkStructureImage, batch = batch, group = structureGroup)
                     structureX = tileX * tileSize / 2 + offsetX
                     structureY = 0
                     if tileX % 2 == 0:
@@ -567,23 +654,30 @@ def drawGame():
                         structureX += tileSize / 4
                         structureY += tileSize / 8
 
-                    if miningOres == True:
-                        distanceToOre = distance(structureX + tileSize / 2, structureY + tileSize / 2, window.width / 2, window.height / 2)
-                        if distanceToOre < closestDestruct:
-                            closestDestruct = distanceToOre
-                            closestDestructData["x"] = tileWorldX
-                            closestDestructData["y"] = tileWorldY
+                    distanceToOre = distance(structureX + tileSize / 2, structureY + tileSize / 2, window.width / 2, window.height / 2)
+                    if distanceToOre < closestInteractable:
+                        closestInteractable = distanceToOre
+                        closestInteractableData["x"] = tileWorldX
+                        closestInteractableData["y"] = tileWorldY
 
-                            closestDestructData["screenX"] = structureX
-                            closestDestructData["screenY"] = structureY
+                        closestInteractableData["screenX"] = structureX
+                        closestInteractableData["screenY"] = structureY
 
-                            closestDestructData["data"] = structureData
+                        closestInteractableData["data"] = structureData
 
-                            if chunkStructure == "ironOre" or chunkStructure == "carbonOre":
-                                closestDestructData["type"] = "ToMine"
+                        if miningOres == True:
+                            if chunkStructures[chunkStructure]["isOre"]:
+                                closestInteractableData["type"] = "ToMine"
                             else:
-                                closestDestructData["type"] = "ToBreak"
-                                closestDestructData["item"] = chunkStructure
+                                closestInteractableData["type"] = "ToBreak"
+                                closestInteractableData["item"] = chunkStructure
+                        else:
+                            if not chunkStructure == "ironOre" and not chunkStructure == "carbonOre":
+                                closestInteractableData["type"] = "ToInteract"
+                                closestInteractableData["GUImenu"] = chunkStructure
+                            else:
+                                closestInteractable = 10000
+                
 
                     sprite.x = structureX
                     sprite.y = structureY
@@ -593,6 +687,8 @@ def drawGame():
                     sprites.append(sprite)
 
     batch.draw()
+
+    clickToPlace = False
 
     if not closestTileMouse == 100000:
         if inventoryItems[selectedHand - 1]["item"] in itemTypes:
@@ -616,9 +712,8 @@ def drawGame():
 
                 sprite.draw()
 
-                if canPlace and LMBClicked:
-                    structuresGenerated[tileCode] = inventoryItems[selectedHand - 1]["item"]
-                    removeItem(inventoryItems[selectedHand - 1]["item"], 1)
+                if canPlace:
+                    clickToPlace = True
 
     # Draw static stuff like the rocket that are under the player
     for staticAsset in staticAssetList:
@@ -693,54 +788,69 @@ def drawGame():
     towardsRocket.draw()
     
     
-    if closestDestruct != 100000:
-        if closestDestruct < 300:
-            hintX = closestDestructData["screenX"] + tileSize / 4
-            hintY = closestDestructData["screenY"] + tileSize / 2
+    if closestInteractable != 100000:
+        if closestInteractable < 300:
+            hintX = closestInteractableData["screenX"] + tileSize / 4
+            hintY = closestInteractableData["screenY"] + tileSize / 2
 
-            ShowUIHint(hintX, hintY, closestDestructData["type"])
+            ShowUIHint(hintX, hintY, closestInteractableData["type"])
 
-            if BreakTime > 0:
-                bar = shapes.Rectangle(
-                    x = hintX - 240,
-                    y = hintY - 250,
-                    width = 500,
-                    height = 50,
-                    color = ( 100, 100, 100 )
-                )
-                bar.opacity = 150
-                bar.draw()
+            if not closestInteractableData["type"] == "ToInteract":
+                if BreakTime > 0:
+                    bar = shapes.Rectangle(
+                        x = hintX - 240,
+                        y = hintY - 250,
+                        width = 500,
+                        height = 50,
+                        color = ( 100, 100, 100 )
+                    )
+                    bar.opacity = 150
+                    bar.draw()
 
-                filled = shapes.Rectangle(
-                    x = hintX - 235,
-                    y = hintY - 245,
-                    width = 490 * (BreakTime / closestDestructData["data"]["breakTime"]),
-                    height = 40,
-                    color = ( 25, 100, 25 )
-                )
-                filled.opacity = 150
-                filled.draw()
+                    filled = shapes.Rectangle(
+                        x = hintX - 235,
+                        y = hintY - 245,
+                        width = 490 * (BreakTime / closestInteractableData["data"]["breakTime"]),
+                        height = 40,
+                        color = ( 25, 100, 25 )
+                    )
+                    filled.opacity = 150
+                    filled.draw()
+                OpenGUIMenu = 0
+            else:
+                BreakTime = 0
+                if EPressed:
+                    OpenGUIMenu = closestInteractableData["GUImenu"]
         else:
             BreakTime = 0
+            OpenGUIMenu = 0
     else:
         BreakTime = 0
+        OpenGUIMenu = 0
 
-    if closestDestructData["data"] == 0:
-        closestDestructData["data"] = {
+    if closestInteractableData["data"] == 0:
+        closestInteractableData["data"] = {
             "breakTime": 1
         }
 
-    if BreakTime >= closestDestructData["data"]["breakTime"]:
-        structuresGenerated[str(closestDestructData["x"]) + "_" + str(closestDestructData["y"])] = 0
-        if closestDestructData["data"]["isOre"]:
-            for give in closestDestructData["data"]["gives"]:
+    if BreakTime >= closestInteractableData["data"]["breakTime"]:
+        structuresGenerated[str(closestInteractableData["x"]) + "_" + str(closestInteractableData["y"])] = 0
+        if closestInteractableData["data"]["isOre"]:
+            for give in closestInteractableData["data"]["gives"]:
                 amount = random.randint(give["min"], give["max"])
                 giveItem(give["item"], amount)
             BreakTime = 0
         else:
-            giveItem(closestDestructData["item"], 1)
+            giveItem(closestInteractableData["item"], 1)
+        
+    if clickToPlace == True and LMBClicked == True:
+        structuresGenerated[tileCode] = inventoryItems[selectedHand - 1]["item"]
+        removeItem(inventoryItems[selectedHand - 1]["item"], 1)
 
     LMBClicked = False
+    LMBReleased = False
+    EPressed = False
+
 
 def giveItem(item, amount):
     global inventoryItems
@@ -781,7 +891,7 @@ def checkAndGenerateStructures(calculatedX, calculatedY, structureX, structureY)
 # TODO: Make this psudorandom depending on a seed rather than 100% random
 def generateStructure(structureX, structureY):
     if random.random() > 0.98:
-        chunkStructure = random.choice(["carbonOre", "ironOre"])
+        chunkStructure = random.choice(["carbonOre", "ironOre", "copperOre"])
         return chunkStructure
     else:
         return 0
@@ -878,7 +988,7 @@ keysPressed = {
 
 @window.event
 def on_key_press(symbol, modifiers):
-    global gameState, backpackOpened, selectedHand
+    global gameState, backpackOpened, selectedHand, EPressed
 
     if gameState == "running":
         if symbol == key.LEFT:
@@ -911,6 +1021,10 @@ def on_key_press(symbol, modifiers):
             keysPressed["s"] = True
         elif symbol == key.D:
             keysPressed["d"] = True
+        elif symbol == key.E:
+            EPressed = True
+        elif symbol == key.ESCAPE:
+            return pyglet.event.EVENT_HANDLED
     elif gameState == "intro":
         if symbol == key.SPACE:
             gameState = "running"
@@ -955,18 +1069,26 @@ def on_mouse_press(x, y, button, modifiers):
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
-    global LMBHeld, BreakTime
+    global LMBHeld, BreakTime, LMBReleased
     
     if gameState == "running":
         if button == mouse.LEFT:
             LMBHeld = False
             BreakTime = 0
+            LMBReleased = True
 
 mouseX = 0
 mouseY = 0
 
 @window.event
 def on_mouse_motion(x, y, movementX, movementY):
+    global mouseX, mouseY
+
+    mouseX = x
+    mouseY = y
+
+@window.event
+def on_mouse_drag(x, y, movementX, movementY, x2, y2):
     global mouseX, mouseY
 
     mouseX = x
@@ -1025,14 +1147,32 @@ def updateGame(dt):
 
     if LMBHeld == True:
         BreakTime += 1 * dt
+    
+    if OpenGUIMenu == "drill":
+        if len(currentGUIData["slotItems"]) <= 15:
+            for i in range(15):
+                currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
+        
+        if random.random() < 1 * dt:
+            index = random.randint(0, 14)
+            if currentGUIData["slotItems"][index]["item"] == 0:
+                currentGUIData["slotItems"][index]["item"] = random.choice(["carbonChunks", "ironChunks", "crudeOil", "copperChunks"])
+                currentGUIData["slotItems"][index]["quantity"] = 1
+            else:
+                currentGUIData["slotItems"][index]["quantity"] += 1
 
 slotSize = 85
 backpackOpened = False
 
 fabricatingMenuSelected = 0
 
+draggingItem = False
+draggingData = {}
+
+currentGUIData = {}
+
 def drawInventory():
-    global backpackOpened
+    global backpackOpened, OpenGUIMenu, draggingItem, LMBClicked, currentGUIData
 
     backpackColor = ( 100, 100, 100 )
     if backpackOpened == True:
@@ -1076,16 +1216,16 @@ def drawInventory():
     slotOneColor = (100, 100, 100)
     if selectedHand == 1:
         slotOneColor = (150, 150, 150)
-    drawSlot(slotSize + 10, 5, slotOneColor, inventoryItems[0], "1")
+    drawSlot(slotSize + 10, 5, slotOneColor, inventoryItems[0], "1", setSlot, 0)
 
     slotTwoColor = (100, 100, 100)
     if selectedHand == 2:
         slotTwoColor = (150, 150, 150)
-    drawSlot(slotSize * 2 + 15, 5, slotTwoColor, inventoryItems[1], "2")
+    drawSlot(slotSize * 2 + 15, 5, slotTwoColor, inventoryItems[1], "2", setSlot, 1)
 
     if backpackOpened == True:
         for backpackSlot in range(backpackSlots):
-            drawSlot(5, (slotSize + 5) * (1 + backpackSlot) + 5, (80, 80, 80), inventoryItems[2 + backpackSlot], str(backpackSlot + 3))
+            drawSlot(5, (slotSize + 5) * (1 + backpackSlot) + 5, (80, 80, 80), inventoryItems[2 + backpackSlot], str(backpackSlot + 3), setSlot, backpackSlot + 2)
 
         fabricatingMenu = shapes.Rectangle(
             x = (slotSize + 10), 
@@ -1118,7 +1258,7 @@ def drawInventory():
 
         index = 0
         for fabricationRecipe in fabricationRecipes:
-            drawSlot(slotSize + 15 + ((slotSize + 5) * index), (slotSize + 5) * 4, ( 100, 100, 100 ), fabricationRecipe["output"], "", selectFabricationRecipe, fabricationRecipe)
+            drawSlot(slotSize + 15 + ((slotSize + 5) * index), (slotSize + 5) * 4, ( 100, 100, 100 ), fabricationRecipe["output"], "", None, None, selectFabricationRecipe, fabricationRecipe, False, False)
             index += 1
 
         if not fabricatingMenuSelected == 0:
@@ -1130,7 +1270,7 @@ def drawInventory():
                     hasMaterialsColor = ( 80, 150, 80 )
                 else:
                     canFabricate = False
-                drawSlot(slotSize + 15 + ((slotSize + 5) * index), (slotSize + 5) * 3 - 10, hasMaterialsColor, fabricationInput, "")
+                drawSlot(slotSize + 15 + ((slotSize + 5) * index), (slotSize + 5) * 3 - 10, hasMaterialsColor, fabricationInput, "", None, None, None, False, False)
                 index += 1
 
             if mouseX > slotSize + 15 and mouseX < slotSize + 15 + (slotSize + 5) * 6 - 15 and mouseY > (slotSize + 5) + 10 and mouseY < (slotSize + 5) + 10 + 30:
@@ -1147,6 +1287,8 @@ def drawInventory():
 
                             removeItem(item, quantity)
                         giveItem(fabricatingMenuSelected["output"]["item"], fabricatingMenuSelected["output"]["quantity"])
+                
+                LMBClicked = False
             else:
                 if canFabricate == True:
                     fabricateButtonColor = ( 100, 150, 100 )
@@ -1170,6 +1312,224 @@ def drawInventory():
                 color = (255, 255, 255, 255),
                 anchor_x = "center", anchor_y = "bottom")
             fabricateButtonLabel.draw()
+
+    if not OpenGUIMenu == 0:
+        GUIMenu = shapes.Rectangle(
+            x = window.width - ((slotSize + 5) * 6), 
+            y = 5,
+            width = (slotSize + 5) * 6 - 5,
+            height = (slotSize + 5) * 4 - 5,
+            color = ( 80, 80, 80 )
+        )
+        GUIMenu.opacity = 200
+        GUIMenu.draw()
+
+        labelBackground = shapes.Rectangle(
+            x = window.width - ((slotSize + 5) * 6), 
+            y = (slotSize + 5) * 4,
+            width = 230,
+            height = 25,
+            color = ( 80, 80, 80 )
+        )
+        labelBackground.opacity = 200
+        labelBackground.draw()
+
+        fabricationLabel = pyglet.text.Label(itemTypes[OpenGUIMenu]["name"],
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 6) + 5,
+            y = (slotSize + 5) * 4 + 20,
+            color = (255, 255, 255, 255),
+            anchor_x = "left", anchor_y = "top")
+        fabricationLabel.draw()
+    else:
+        if "slotItems" in currentGUIData:
+            for slotItem in currentGUIData["slotItems"]:
+                if not slotItem["item"] == 0:
+                    giveItem(slotItem["item"], slotItem["quantity"])
+
+        currentGUIData = {
+            "slotItems": []
+        }
+
+    if OpenGUIMenu == "smelter":
+        if len(currentGUIData["slotItems"]) <= 2:
+            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
+
+        smelterRecipes = {
+            "ironChunks": "ironBar",
+            "carbonChunks": "solidFuel",
+            "copperChunks": "copperBar"
+        }
+
+        drawSlot(
+            window.width - ((slotSize + 5) * 5),
+            (slotSize + 5) * 2.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][0], "", setGUISlot, 0, True, True
+        )
+
+        inputLabel = pyglet.text.Label("Input",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 5) + slotSize / 2,
+            y = (slotSize + 5) * 2.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        inputLabel.draw()
+        
+        drawSlot(
+            window.width - ((slotSize + 5) * 5),
+            (slotSize + 5) * 0.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][1], "", setGUISlot, 1, True, True
+        )
+
+        inputLabel = pyglet.text.Label("Fuel",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 5) + slotSize / 2,
+            y = (slotSize + 5) * 0.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        inputLabel.draw()
+        
+        drawSlot(
+            window.width - ((slotSize + 5) * 2),
+            (slotSize + 5) * 1.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][2], "", setGUISlot, 2, None, None, False, True
+        )
+
+        outputLabel = pyglet.text.Label("Output",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 2) + slotSize / 2,
+            y = (slotSize + 5) * 1.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        outputLabel.draw()
+
+        if currentGUIData["slotItems"][0]["item"] in smelterRecipes:
+            if currentGUIData["slotItems"][1]["item"] in ["solidFuel", "carbonChunks"]:
+                if currentGUIData["slotItems"][2]["item"] == 0:
+                    currentGUIData["slotItems"][2]["item"] = smelterRecipes[currentGUIData["slotItems"][0]["item"]]
+                    currentGUIData["slotItems"][2]["quantity"] = 1
+
+                    if currentGUIData["slotItems"][0]["quantity"] > 1:
+                        currentGUIData["slotItems"][0]["quantity"] -= 1
+                    else:
+                        currentGUIData["slotItems"][0]["item"] = 0
+                        currentGUIData["slotItems"][0]["quantity"] = 1
+                        
+                    if currentGUIData["slotItems"][1]["quantity"] > 1:
+                        currentGUIData["slotItems"][1]["quantity"] -= 1
+                    else:
+                        currentGUIData["slotItems"][1]["item"] = 0
+                        currentGUIData["slotItems"][1]["quantity"] = 1
+                if currentGUIData["slotItems"][2]["item"] == smelterRecipes[currentGUIData["slotItems"][0]["item"]]:
+                    currentGUIData["slotItems"][2]["quantity"] += 1
+                    
+                    if currentGUIData["slotItems"][0]["quantity"] > 1:
+                        currentGUIData["slotItems"][0]["quantity"] -= 1
+                    else:
+                        currentGUIData["slotItems"][0]["item"] = 0
+                        currentGUIData["slotItems"][0]["quantity"] = 1
+                        
+                    if currentGUIData["slotItems"][1]["quantity"] > 1:
+                        currentGUIData["slotItems"][1]["quantity"] -= 1
+                    else:
+                        currentGUIData["slotItems"][1]["item"] = 0
+                        currentGUIData["slotItems"][1]["quantity"] = 1
+
+    elif OpenGUIMenu == "drill":
+        if len(currentGUIData["slotItems"]) <= 15:
+            for i in range(15):
+                currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
+
+        drillOutputs = 15
+        
+        outputLabel = pyglet.text.Label("Outputs",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 2.5) - slotSize / 2,
+            y = (slotSize + 5) * 4 - slotSize / 2,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        outputLabel.draw()
+
+        for output in range(drillOutputs):
+            drawSlot(
+                window.width - ((slotSize + 5) * (5 - output % 5)) - slotSize / 2,
+                (slotSize + 5) * (3 - math.floor(output / 5)) - slotSize / 2,
+                ( 80, 80, 80 ), currentGUIData["slotItems"][output], "", setGUISlot, output, None, None, False, True
+            )
+    elif OpenGUIMenu == "coilMaker":
+        if len(currentGUIData["slotItems"]) <= 1:
+            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
+
+        coilMakerRecipes = {
+            "copperBar": "copperWire"
+        }
+
+        drawSlot(
+            window.width - ((slotSize + 5) * 5),
+            (slotSize + 5) * 1.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][0], "", setGUISlot, 0, True, True
+        )
+
+        inputLabel = pyglet.text.Label("Input",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 5) + slotSize / 2,
+            y = (slotSize + 5) * 1.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        inputLabel.draw()
+        
+        drawSlot(
+            window.width - ((slotSize + 5) * 2),
+            (slotSize + 5) * 1.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][1], "", setGUISlot, 1, None, None, False, True
+        )
+
+        outputLabel = pyglet.text.Label("Output",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 2) + slotSize / 2,
+            y = (slotSize + 5) * 1.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        outputLabel.draw()
+
+        if currentGUIData["slotItems"][0]["item"] in coilMakerRecipes:
+            if currentGUIData["slotItems"][1]["item"] == 0:
+                currentGUIData["slotItems"][1]["item"] = coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]
+                currentGUIData["slotItems"][1]["quantity"] = 1
+
+                if currentGUIData["slotItems"][0]["quantity"] > 1:
+                    currentGUIData["slotItems"][0]["quantity"] -= 1
+                else:
+                    currentGUIData["slotItems"][0]["item"] = 0
+                    currentGUIData["slotItems"][0]["quantity"] = 1
+            if currentGUIData["slotItems"][1]["item"] == coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]:
+                currentGUIData["slotItems"][1]["quantity"] += 1
+                
+                if currentGUIData["slotItems"][0]["quantity"] > 1:
+                    currentGUIData["slotItems"][0]["quantity"] -= 1
+                else:
+                    currentGUIData["slotItems"][0]["item"] = 0
+                    currentGUIData["slotItems"][0]["quantity"] = 1
+
+    if not draggingItem == 0:
+        drawSlot(mouseX - slotSize / 2, mouseY - slotSize / 2, (0, 0, 0), draggingItem, "", None, None, None, None, False, False, 0)
+        if not LMBHeld:
+            draggingItem = 0
+
+def setGUISlot(slot, item):
+    global currentGUIData
+
+    currentGUIData["slotItems"][slot] = item
+
+def setSlot(slot, item):
+    inventoryItems[slot] = item
 
 def removeItem(item, quantity):
     quantityLeft = quantity
@@ -1207,7 +1567,9 @@ def selectFabricationRecipe(recipe):
 
     fabricatingMenuSelected = recipe
 
-def drawSlot(slotX, slotY, color, item, label, clickCallback = None, callbackParameters = None):
+def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickCallback = None, callbackParameters = None, canDragTo = True, canDragFrom = True, opacity = 200):
+    global LMBClicked, LMBReleased, draggingItem, draggingData
+
     slotSquare = shapes.Rectangle(
         x = slotX, 
         y = slotY,
@@ -1216,7 +1578,10 @@ def drawSlot(slotX, slotY, color, item, label, clickCallback = None, callbackPar
         color = color
     )
     if mouseX > slotX and mouseY > slotY and mouseX < slotX + slotSize and mouseY < slotY + slotSize:
-        slotSquare.opacity = 255
+        if opacity == 200:
+            slotSquare.opacity = 255
+        else:
+            slotSquare.opacity = opacity
         
         if not item["item"] == 0:
             slotItemLabel = pyglet.text.Label(itemTypes[item["item"]]["name"],
@@ -1229,13 +1594,37 @@ def drawSlot(slotX, slotY, color, item, label, clickCallback = None, callbackPar
             slotItemLabel.draw()
 
         if LMBClicked == True:
-            if not clickCallback == None:
-                if callbackParameters == None:
-                    clickCallback()
-                else:
-                    clickCallback(callbackParameters)
+            if canDragFrom == True:
+                draggingItem = item
+                draggingData["setSlot"] = setSlot
+                draggingData["setSlotParameter"] = setSlotParameter
+                draggingData["item"] = item
+            else:
+                if not clickCallback == None:
+                    if callbackParameters == None:
+                        clickCallback()
+                    else:
+                        clickCallback(callbackParameters)
+            
+        if LMBReleased == True:
+            if canDragTo == True:
+                if not setSlot == None:
+                    if not draggingItem == 0:
+                        if draggingData["item"]["item"] == item["item"]:
+                            newStack = draggingData["item"]
+                            newStack["quantity"] += item["quantity"]
+                            setSlot(setSlotParameter, newStack)
+                            if not draggingData["setSlot"] == 0:
+                                draggingData["setSlot"](draggingData["setSlotParameter"], { "item": 0, "quantity": 1 })
+                        else:
+                            setSlot(setSlotParameter, draggingData["item"])
+                            if not draggingData["setSlot"] == 0:
+                                draggingData["setSlot"](draggingData["setSlotParameter"], item)
+        
+        LMBReleased = False
+        LMBClicked = False
     else:
-        slotSquare.opacity = 200
+        slotSquare.opacity = opacity
     slotSquare.draw()
 
     if item["item"] in itemTypes:
