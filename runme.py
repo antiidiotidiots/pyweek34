@@ -20,8 +20,8 @@ oxygen = 1
 oxygenMinutes = 20
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
-backpackSlots = 4
-inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "coilMaker", "quantity": 1 }, { "item": "copperBar", "quantity": 10000 } ]
+backpackSlots = 5
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "smelter", "quantity": 1 }, { "item": "ironChunks", "quantity": 200 }, { "item": "copperChunks", "quantity": 200 }, { "item": "carbonChunks", "quantity": 500 } ]
 
 selectedHand = 1
 
@@ -95,9 +95,21 @@ itemTypes = {
         "canMine": False,
         "canBuild": False
     },
+    "fuel": {
+        "path": "fuel.png",
+        "name": "Fuel",
+        "canMine": False,
+        "canBuild": False
+    },
     "coilMaker": {
         "path": "coilMaker.png",
         "name": "Coil Maker",
+        "canMine": False,
+        "canBuild": True
+    },
+    "oilRefinery": {
+        "path": "oilRefinery.png",
+        "name": "Oil Refinery",
         "canMine": False,
         "canBuild": True
     }
@@ -125,6 +137,14 @@ fabricationRecipes = [
             { "item": "ironBar", "quantity": 10 }
         ],
         "output": { "item": "coilMaker", "quantity": 1 }
+    },
+    {
+        "inputs": [
+            { "item": "ironBar", "quantity": 5 },
+            { "item": "copperBar", "quantity": 3 },
+            { "item": "copperWire", "quantity": 10 }
+        ],
+        "output": { "item": "oilRefinery", "quantity": 1 }
     }
 ]
 
@@ -138,6 +158,72 @@ tileNames = {
     "mars": "assets/images/tiles/mars.png",
     "marsLight": "assets/images/tiles/marsLight.png"
 }
+
+rocketRepairStages = [
+    {
+        "requires": [
+            { "item": "ironBar", "quantity": 3}
+        ],
+        "tutorialPrompts": [
+            {
+                "title": "Mine",
+                "description": "Pull out your pickaxe and\nmine the ores around you.\n\nNo, this isn't Minecraft."
+            },
+            {
+                "title": "Fabricate",
+                "description": "Use the ores you mined to\nmake a smelter."
+            },
+            {
+                "title": "Smelt",
+                "description": "Smelt your ores you gathered\nusing the carbon.\nSmelting carbon makes solid\nfuel."
+            },
+            {
+                "title": "Gather everything",
+                "description": "To move on to the next repair\nstage of the rocket,\ngather everything shown\nin the top left."
+            }
+        ]
+    },
+    {
+        "requires": [
+            { "item": "ironBar", "quantity": 30 },
+            { "item": "copperBar", "quantity": 30}
+        ],
+        "tutorialPrompts": [
+            {
+                "title": "Mine FASTER!",
+                "description": "Fabricate a drill using iron\nbars and solid fuel to do the\nwork for you.\nDrills can also gather\ncrude oil."
+            }
+        ]
+    },
+    {
+        "requires": [
+            { "item": "copperBar", "quantity": 20},
+            { "item": "copperWire", "quantity": 20}
+        ],
+        "tutorialPrompts": [
+            {
+                "title": "Coil maker",
+                "description": "Create a coil maker and input\ncopper bars."
+            }
+        ]
+    },
+    {
+        "requires": [
+            { "item": "solidFuel", "quantity": 30 },
+            { "item": "fuel", "quantity": 30 }
+        ],
+        "tutorialPrompts": [
+            {
+                "title": "Fuel the rocket",
+                "description": "Craft an oil refinery and create\nsome fuel.\nYou're almost there!"
+            }
+        ]
+    }
+]
+
+tutorialPromptQueue = []
+
+rocketRepairStage = -1
 
 tiles = {}
 
@@ -161,7 +247,7 @@ tileSize = 256 # Pixels?
 
 walkingFrame = 0
 
-UIImageFiles = ["backpackOpen", "backpackClosed"]
+UIImageFiles = ["backpackOpen", "backpackClosed", "play"]
 UIImages = {}
 
 for UIImage in UIImageFiles:
@@ -187,6 +273,10 @@ miscImages = {
         "animated": True,
         "path": "nobreak.png",
         "columns": 13
+    },
+    "trash": {
+        "animated": False,
+        "path": "trash.png"
     }
 }
 
@@ -353,6 +443,12 @@ chunkStructures = {
         "breakTime": 4,
         "isOre": False,
         "animated": False,
+    },
+    "oilRefinery": {
+        "path": "oilRefinery.png",
+        "breakTime": 3,
+        "isOre": False,
+        "animated": False,
     }
 }
 
@@ -377,6 +473,7 @@ for UIHintFile in UIHintFiles:
     UIHints[UIHintFile] = pyglet.image.load("assets/images/UI/" + UIHintFiles[UIHintFile])
 
 LMBHeld = False
+RMBHeld = False
 BreakTime = 0
 
 @window.event
@@ -521,13 +618,15 @@ oldX = 0
 oldY = 0
 
 LMBClicked = False
+RMBClicked = False
 LMBReleased = False
+RMBReleased = False
 EPressed = False
 
 OpenGUIMenu = 0
 
 def drawGame():
-    global walkingFrame, oxygen, oldX, oldY, BreakTime, LMBClicked, LMBReleased, EPressed, OpenGUIMenu
+    global walkingFrame, oxygen, oldX, oldY, BreakTime, LMBClicked, RMBClicked, LMBReleased, RMBReleased, EPressed, OpenGUIMenu
 
     window.clear()
     
@@ -849,6 +948,8 @@ def drawGame():
 
     LMBClicked = False
     LMBReleased = False
+    RMBClicked = False
+    RMBReleased = False
     EPressed = False
 
 
@@ -974,6 +1075,7 @@ def drawUI():
     
     drawInventory()
 
+    drawTutorialPromt()
 
 keysPressed = {
     "left": False,
@@ -1001,7 +1103,7 @@ def on_key_press(symbol, modifiers):
             keysPressed["down"] = True
         elif symbol == key.B:
             backpackOpened = not backpackOpened
-        elif symbol == 49: # numbers 1 through 6
+        elif symbol == 49: # numbers 1 through 7
             selectedHand = 1
         elif symbol == 50:
             selectedHand = 2
@@ -1013,6 +1115,8 @@ def on_key_press(symbol, modifiers):
             swapWithSelectedHand(5)
         elif symbol == 54:
             swapWithSelectedHand(6)
+        elif symbol == 55:
+            swapWithSelectedHand(7)
         elif symbol == key.W:
             keysPressed["w"] = True
         elif symbol == key.A:
@@ -1025,6 +1129,11 @@ def on_key_press(symbol, modifiers):
             EPressed = True
         elif symbol == key.ESCAPE:
             return pyglet.event.EVENT_HANDLED
+        elif symbol == key.N:
+            nextTutorialPrompt()
+        elif symbol == key.T:
+            inventoryItems[selectedHand - 1]["item"] = 0
+            inventoryItems[selectedHand - 1]["quantity"] = 1
     elif gameState == "intro":
         if symbol == key.SPACE:
             gameState = "running"
@@ -1060,22 +1169,28 @@ from pyglet.window import mouse
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
-    global LMBHeld, LMBClicked
+    global LMBHeld, LMBClicked, RMBHeld, RMBClicked
 
     if gameState == "running":
         if button == mouse.LEFT:
             LMBHeld = True
             LMBClicked = True
+        elif button == mouse.RIGHT:
+            RMBHeld = True
+            RMBClicked = True
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
-    global LMBHeld, BreakTime, LMBReleased
+    global LMBHeld, BreakTime, LMBReleased, RMBHeld, RMBReleased
     
     if gameState == "running":
         if button == mouse.LEFT:
             LMBHeld = False
             BreakTime = 0
             LMBReleased = True
+        elif button == mouse.RIGHT:
+            RMBHeld = False
+            RMBReleased = True
 
 mouseX = 0
 mouseY = 0
@@ -1095,8 +1210,8 @@ def on_mouse_drag(x, y, movementX, movementY, x2, y2):
     mouseY = y
 
 # Logs all events that happen
-# event_logger = pyglet.window.event.WindowEventLogger()
-# window.push_handlers(event_logger)
+event_logger = pyglet.window.event.WindowEventLogger()
+window.push_handlers(event_logger)
 
 
 framerate = 144 # Frames per second
@@ -1153,13 +1268,32 @@ def updateGame(dt):
             for i in range(15):
                 currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
         
-        if random.random() < 1 * dt:
+        if random.random() < 2 * dt:
             index = random.randint(0, 14)
             if currentGUIData["slotItems"][index]["item"] == 0:
                 currentGUIData["slotItems"][index]["item"] = random.choice(["carbonChunks", "ironChunks", "crudeOil", "copperChunks"])
                 currentGUIData["slotItems"][index]["quantity"] = 1
             else:
                 currentGUIData["slotItems"][index]["quantity"] += 1
+
+    hasPickaxe = False
+    for item in inventoryItems:
+        if item["item"] == "pickaxe":
+            hasPickaxe = True
+
+    if not hasPickaxe == True:
+        giveItem("pickaxe", 1)
+
+    hasItems = True
+
+    materialsForStage = rocketRepairStages[rocketRepairStage]["requires"]
+    for materialForStage in materialsForStage:
+        if not playerHasMaterials(materialForStage):
+            hasItems = False
+    
+    if hasItems == True:
+        loadNextRepairStage()
+
 
 slotSize = 85
 backpackOpened = False
@@ -1172,7 +1306,7 @@ draggingData = {}
 currentGUIData = {}
 
 def drawInventory():
-    global backpackOpened, OpenGUIMenu, draggingItem, LMBClicked, currentGUIData
+    global backpackOpened, OpenGUIMenu, draggingItem, LMBClicked, currentGUIData, RMBClicked, RMBHeld
 
     backpackColor = ( 100, 100, 100 )
     if backpackOpened == True:
@@ -1226,6 +1360,39 @@ def drawInventory():
     if backpackOpened == True:
         for backpackSlot in range(backpackSlots):
             drawSlot(5, (slotSize + 5) * (1 + backpackSlot) + 5, (80, 80, 80), inventoryItems[2 + backpackSlot], str(backpackSlot + 3), setSlot, backpackSlot + 2)
+        
+        trashBackground = shapes.Rectangle(
+            x = 5,
+            y = (slotSize + 5) * (backpackSlots + 1) + 5,
+            width = slotSize,
+            height = slotSize,
+            color = ( 100, 100, 100 )
+        )
+        if mouseX > 5 and mouseY > (slotSize + 5) * (backpackSlots + 1) + 5 and mouseX < 5 + slotSize and mouseY < (slotSize + 5) * (backpackSlots + 1) + 5 + slotSize:
+            trashBackground.opacity = 255
+            if LMBReleased == True:
+                if not draggingItem == 0:
+                    if not draggingData["setSlot"] == 0:
+                        draggingData["setSlot"](draggingData["setSlotParameter"], { "item": 0, "quantity": 1 })
+        else:
+            trashBackground.opacity = 200
+        trashBackground.draw()
+        
+        trashImage = pyglet.sprite.Sprite(img = miscImages["trash"]["image"])
+        trashImage.x = 5
+        trashImage.y = (slotSize + 5) * (backpackSlots + 1) + 5
+
+        trashImage.scale = slotSize / 1024
+        trashImage.draw()
+
+        trashLabel = pyglet.text.Label("T",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = 10,
+            y = (slotSize + 5) * (backpackSlots + 2) - 5,
+            color = (255, 255, 255, 255),
+            anchor_x = "left", anchor_y = "top")
+        trashLabel.draw()
 
         fabricatingMenu = shapes.Rectangle(
             x = (slotSize + 10), 
@@ -1517,11 +1684,80 @@ def drawInventory():
                 else:
                     currentGUIData["slotItems"][0]["item"] = 0
                     currentGUIData["slotItems"][0]["quantity"] = 1
+    elif OpenGUIMenu == "oilRefinery":
+        if len(currentGUIData["slotItems"]) <= 1:
+            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
+
+        coilMakerRecipes = {
+            "crudeOil": "fuel"
+        }
+
+        drawSlot(
+            window.width - ((slotSize + 5) * 5),
+            (slotSize + 5) * 1.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][0], "", setGUISlot, 0, True, True
+        )
+
+        inputLabel = pyglet.text.Label("Input",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 5) + slotSize / 2,
+            y = (slotSize + 5) * 1.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        inputLabel.draw()
+        
+        drawSlot(
+            window.width - ((slotSize + 5) * 2),
+            (slotSize + 5) * 1.5,
+            ( 80, 80, 80 ), currentGUIData["slotItems"][1], "", setGUISlot, 1, None, None, False, True
+        )
+
+        outputLabel = pyglet.text.Label("Output",
+            font_name = "Press Start 2P",
+            font_size = 15,
+            x = window.width - ((slotSize + 5) * 2) + slotSize / 2,
+            y = (slotSize + 5) * 1.5 + slotSize,
+            color = (255, 255, 255, 255),
+            anchor_x = "center", anchor_y = "bottom")
+        outputLabel.draw()
+
+        if currentGUIData["slotItems"][0]["item"] in coilMakerRecipes:
+            if currentGUIData["slotItems"][1]["item"] == 0:
+                currentGUIData["slotItems"][1]["item"] = coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]
+                currentGUIData["slotItems"][1]["quantity"] = 1
+
+                if currentGUIData["slotItems"][0]["quantity"] > 1:
+                    currentGUIData["slotItems"][0]["quantity"] -= 1
+                else:
+                    currentGUIData["slotItems"][0]["item"] = 0
+                    currentGUIData["slotItems"][0]["quantity"] = 1
+            if currentGUIData["slotItems"][1]["item"] == coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]:
+                currentGUIData["slotItems"][1]["quantity"] += 1
+                
+                if currentGUIData["slotItems"][0]["quantity"] > 1:
+                    currentGUIData["slotItems"][0]["quantity"] -= 1
+                else:
+                    currentGUIData["slotItems"][0]["item"] = 0
+                    currentGUIData["slotItems"][0]["quantity"] = 1
 
     if not draggingItem == 0:
         drawSlot(mouseX - slotSize / 2, mouseY - slotSize / 2, (0, 0, 0), draggingItem, "", None, None, None, None, False, False, 0)
-        if not LMBHeld:
+        if not LMBHeld and not RMBHeld:
             draggingItem = 0
+
+    index = 0
+    requiredLabel = pyglet.text.Label("Required",
+        font_name = "Press Start 2P",
+        font_size = 15,
+        x = 5,
+        y = window.height - 5,
+        color = (255, 255, 255, 255),
+        anchor_x = "left", anchor_y = "top")
+    requiredLabel.draw()
+    for requiredItem in rocketRepairStages[rocketRepairStage]["requires"]:
+        drawSlot((slotSize + 5) * index + 5, window.height - 30 - slotSize, (80, 80, 80), requiredItem, "", None, None, None, None, False, False)
+        index += 1
 
 def setGUISlot(slot, item):
     global currentGUIData
@@ -1568,7 +1804,7 @@ def selectFabricationRecipe(recipe):
     fabricatingMenuSelected = recipe
 
 def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickCallback = None, callbackParameters = None, canDragTo = True, canDragFrom = True, opacity = 200):
-    global LMBClicked, LMBReleased, draggingItem, draggingData
+    global LMBClicked, LMBReleased, RMBClicked, RMBReleased, draggingItem, draggingData
 
     slotSquare = shapes.Rectangle(
         x = slotX, 
@@ -1593,12 +1829,14 @@ def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickC
                 anchor_x = "left", anchor_y = "top")
             slotItemLabel.draw()
 
-        if LMBClicked == True:
+        if LMBClicked == True or RMBClicked == True:
             if canDragFrom == True:
                 draggingItem = item
                 draggingData["setSlot"] = setSlot
                 draggingData["setSlotParameter"] = setSlotParameter
                 draggingData["item"] = item
+                draggingData["slotX"] = slotX
+                draggingData["slotY"] = slotY
             else:
                 if not clickCallback == None:
                     if callbackParameters == None:
@@ -1606,20 +1844,21 @@ def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickC
                     else:
                         clickCallback(callbackParameters)
             
-        if LMBReleased == True:
+        if LMBReleased == True or RMBReleased == True:
             if canDragTo == True:
                 if not setSlot == None:
                     if not draggingItem == 0:
-                        if draggingData["item"]["item"] == item["item"]:
-                            newStack = draggingData["item"]
-                            newStack["quantity"] += item["quantity"]
-                            setSlot(setSlotParameter, newStack)
-                            if not draggingData["setSlot"] == 0:
-                                draggingData["setSlot"](draggingData["setSlotParameter"], { "item": 0, "quantity": 1 })
-                        else:
-                            setSlot(setSlotParameter, draggingData["item"])
-                            if not draggingData["setSlot"] == 0:
-                                draggingData["setSlot"](draggingData["setSlotParameter"], item)
+                        if not (slotX == draggingData["slotX"] and  slotY == draggingData["slotY"]):
+                            if draggingData["item"]["item"] == item["item"]:
+                                newStack = draggingData["item"]
+                                newStack["quantity"] += item["quantity"]
+                                setSlot(setSlotParameter, newStack)
+                                if not draggingData["setSlot"] == 0:
+                                    draggingData["setSlot"](draggingData["setSlotParameter"], { "item": 0, "quantity": 1 })
+                            else:
+                                setSlot(setSlotParameter, draggingData["item"])
+                                if not draggingData["setSlot"] == 0:
+                                    draggingData["setSlot"](draggingData["setSlotParameter"], item)
         
         LMBReleased = False
         LMBClicked = False
@@ -1656,6 +1895,80 @@ def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickC
             color = (255, 255, 255, 255),
             anchor_x = "right", anchor_y = "bottom")
         slotAmount.draw()
+
+def loadNextRepairStage():
+    global rocketRepairStage, tutorialPromptQueue
+
+    if rocketRepairStage >= 0:
+        materialsForStage = rocketRepairStages[rocketRepairStage]["requires"]
+        for materialForStage in materialsForStage:
+            removeItem(materialForStage["item"], materialForStage["quantity"])
+
+    rocketRepairStage += 1
+    tutorialPromptQueue = rocketRepairStages[rocketRepairStage]["tutorialPrompts"]
+
+def drawTutorialPromt():
+    global LMBClicked
+
+    if len(tutorialPromptQueue) > 0:
+        tutorialPromt = tutorialPromptQueue[0]
+
+        tutorialPromtBack = shapes.Rectangle(
+            x = window.width / 2 - 300, 
+            y = window.height - 175,
+            width = 600,
+            height = 170,
+            color = ( 100, 100, 100 )
+        )
+        tutorialPromtBack.opacity = 200
+        tutorialPromtBack.draw()
+
+        tutorialPromptTitle = pyglet.text.Label(tutorialPromt["title"],
+            font_name = "Press Start 2P",
+            font_size = 20,
+            x = window.width / 2 - 295,
+            y = window.height - 10,
+            color = (255, 255, 255, 255),
+            anchor_x = "left", anchor_y = "top")
+        tutorialPromptTitle.draw()
+        
+        index = 0
+        for line in tutorialPromt["description"].split("\n"):
+            tutorialPromptContent = pyglet.text.Label(line,
+                font_name = "Press Start 2P",
+                font_size = 15,
+                x = window.width / 2 - 295,
+                y = window.height - 60 - (index * 25),
+                color = (255, 255, 255, 255),
+                anchor_x = "left", anchor_y = "top")
+            tutorialPromptContent.draw()
+            index += 1
+
+        nextImage = pyglet.sprite.Sprite(img = UIImages["play"])
+        nextImage.scale = 32 / 1024
+        nextImage.x = window.width / 2 + 260
+        nextImage.y = window.height - 170
+        nextImage.draw()
+
+        if mouseX > window.width / 2 + 260 and mouseX < window.width / 2 + 260 + 32 and mouseY > window.height - 170 and mouseY < window.height - 170 + 32:
+            if LMBClicked:
+                LMBClicked = False
+                nextTutorialPrompt()
+        
+        nextLabel = pyglet.text.Label("N",
+            font_name = "Press Start 2P",
+            font_size = 20,
+            x = window.width / 2 + 260,
+            y = window.height - 150,
+            color = (255, 255, 255, 255),
+            anchor_x = "left", anchor_y = "bottom")
+        nextLabel.draw()
+
+def nextTutorialPrompt():
+    if len(tutorialPromptQueue) > 0:
+        tutorialPromptQueue.pop(0)
+
+loadNextRepairStage()
 
 pyglet.clock.schedule_interval(update, 1 / framerate)
 
