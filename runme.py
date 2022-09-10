@@ -1210,8 +1210,8 @@ def on_mouse_drag(x, y, movementX, movementY, x2, y2):
     mouseY = y
 
 # Logs all events that happen
-event_logger = pyglet.window.event.WindowEventLogger()
-window.push_handlers(event_logger)
+# event_logger = pyglet.window.event.WindowEventLogger()
+# window.push_handlers(event_logger)
 
 
 framerate = 144 # Frames per second
@@ -1744,6 +1744,9 @@ def drawInventory():
     if not draggingItem == 0:
         drawSlot(mouseX - slotSize / 2, mouseY - slotSize / 2, (0, 0, 0), draggingItem, "", None, None, None, None, False, False, 0)
         if not LMBHeld and not RMBHeld:
+            if not draggingData["complete"] and draggingData["half"]:
+                draggingData["item"]["quantity"] = draggingData["item"]["quantity"] + draggingItem["otherQuantity"]
+                draggingData["setSlot"](draggingData["setSlotParameter"], draggingData["item"])
             draggingItem = 0
 
     index = 0
@@ -1831,10 +1834,21 @@ def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickC
 
         if LMBClicked == True or RMBClicked == True:
             if canDragFrom == True:
-                draggingItem = item
                 draggingData["setSlot"] = setSlot
                 draggingData["setSlotParameter"] = setSlotParameter
-                draggingData["item"] = item
+                draggingData["complete"] = False
+                if RMBClicked == True and not item["quantity"] <= 1:
+                    draggingItem = item.copy()
+                    draggingData["item"] = item.copy()
+                    draggingData["item"]["quantity"] = math.ceil(draggingData["item"]["quantity"] / 2)
+                    item["quantity"] = math.floor(draggingItem["quantity"] / 2)
+                    draggingItem["otherQuantity"] = math.floor(draggingItem["quantity"] / 2)
+                    draggingItem["quantity"] = math.ceil(draggingItem["quantity"] / 2)
+                    draggingData["half"] = True
+                else:
+                    draggingItem = item
+                    draggingData["item"] = item
+                    draggingData["half"] = False
                 draggingData["slotX"] = slotX
                 draggingData["slotY"] = slotY
             else:
@@ -1848,17 +1862,21 @@ def drawSlot(slotX, slotY, color, item, label, setSlot, setSlotParameter, clickC
             if canDragTo == True:
                 if not setSlot == None:
                     if not draggingItem == 0:
-                        if not (slotX == draggingData["slotX"] and  slotY == draggingData["slotY"]):
-                            if draggingData["item"]["item"] == item["item"]:
-                                newStack = draggingData["item"]
-                                newStack["quantity"] += item["quantity"]
-                                setSlot(setSlotParameter, newStack)
-                                if not draggingData["setSlot"] == 0:
-                                    draggingData["setSlot"](draggingData["setSlotParameter"], { "item": 0, "quantity": 1 })
-                            else:
-                                setSlot(setSlotParameter, draggingData["item"])
-                                if not draggingData["setSlot"] == 0:
-                                    draggingData["setSlot"](draggingData["setSlotParameter"], item)
+                            if not (slotX == draggingData["slotX"] and  slotY == draggingData["slotY"]):
+                                draggingData["complete"] = True
+                                if draggingData["item"]["item"] == item["item"]:
+                                    newStack = draggingData["item"]
+                                    newStack["quantity"] += item["quantity"]
+                                    setSlot(setSlotParameter, newStack)
+                                    if not draggingData["half"]:
+                                        if not draggingData["setSlot"] == 0:
+                                            draggingData["setSlot"](draggingData["setSlotParameter"], { "item": 0, "quantity": 1 })
+                                else:
+                                    if not (draggingData["half"] and not item["item"] == 0): 
+                                        setSlot(setSlotParameter, draggingData["item"])
+                                        if not draggingData["half"]:
+                                            if not draggingData["setSlot"] == 0:
+                                                draggingData["setSlot"](draggingData["setSlotParameter"], item)
         
         LMBReleased = False
         LMBClicked = False
