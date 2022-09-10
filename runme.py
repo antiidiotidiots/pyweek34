@@ -21,7 +21,7 @@ oxygenMinutes = 20
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 4
-inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "drill", "quantity": 10 } ]
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "smelter", "quantity": 10 } ]
 
 selectedHand = 1
 
@@ -50,6 +50,12 @@ itemTypes = {
     "drill": {
         "path": "drill.png",
         "name": "Drill",
+        "canMine": False,
+        "canBuild": True
+    },
+    "smelter": {
+        "path": "smelter.png",
+        "name": "Smelter",
         "canMine": False,
         "canBuild": True
     }
@@ -268,6 +274,12 @@ chunkStructures = {
         "isOre": False,
         "animated": True,
         "columns": 14
+    },
+    "smelter": {
+        "path": "smelter.png",
+        "breakTime": 4,
+        "isOre": False,
+        "animated": False,
     }
 }
 
@@ -474,8 +486,8 @@ def drawGame():
         if itemTypes[inventoryItems[selectedHand - 1]["item"]]["canMine"] == True:
             miningOres = True
 
-    closestOre = 100000
-    closestOreData = {
+    closestDestruct = 100000
+    closestDestructData = {
         "x": 0,
         "y": 0,
         "screenX": 0,
@@ -557,15 +569,21 @@ def drawGame():
 
                     if miningOres == True:
                         distanceToOre = distance(structureX + tileSize / 2, structureY + tileSize / 2, window.width / 2, window.height / 2)
-                        if distanceToOre < closestOre:
-                            closestOre = distanceToOre
-                            closestOreData["x"] = tileWorldX
-                            closestOreData["y"] = tileWorldY
+                        if distanceToOre < closestDestruct:
+                            closestDestruct = distanceToOre
+                            closestDestructData["x"] = tileWorldX
+                            closestDestructData["y"] = tileWorldY
 
-                            closestOreData["screenX"] = structureX
-                            closestOreData["screenY"] = structureY
+                            closestDestructData["screenX"] = structureX
+                            closestDestructData["screenY"] = structureY
 
-                            closestOreData["data"] = structureData
+                            closestDestructData["data"] = structureData
+
+                            if chunkStructure == "ironOre" or chunkStructure == "carbonOre":
+                                closestDestructData["type"] = "ToMine"
+                            else:
+                                closestDestructData["type"] = "ToBreak"
+                                closestDestructData["item"] = chunkStructure
 
                     sprite.x = structureX
                     sprite.y = structureY
@@ -675,48 +693,52 @@ def drawGame():
     towardsRocket.draw()
     
     
-    if closestOre != 100000:
-        if closestOre < 300:
-            hintX = closestOreData["screenX"] + tileSize / 4
-            hintY = closestOreData["screenY"] + tileSize / 2
+    if closestDestruct != 100000:
+        if closestDestruct < 300:
+            hintX = closestDestructData["screenX"] + tileSize / 4
+            hintY = closestDestructData["screenY"] + tileSize / 2
 
-            ShowUIHint(hintX, hintY, "ToMine")
+            ShowUIHint(hintX, hintY, closestDestructData["type"])
 
-            bar = shapes.Rectangle(
-                x = hintX - 250,
-                y = hintY - 250,
-                width = 500,
-                height = 50,
-                color = ( 100, 100, 100 )
-            )
-            bar.opacity = 150
-            bar.draw()
+            if BreakTime > 0:
+                bar = shapes.Rectangle(
+                    x = hintX - 240,
+                    y = hintY - 250,
+                    width = 500,
+                    height = 50,
+                    color = ( 100, 100, 100 )
+                )
+                bar.opacity = 150
+                bar.draw()
 
-            filled = shapes.Rectangle(
-                x = hintX - 245,
-                y = hintY - 245,
-                width = 490 * (BreakTime / closestOreData["data"]["breakTime"]),
-                height = 40,
-                color = ( 25, 100, 25 )
-            )
-            filled.opacity = 150
-            filled.draw()
+                filled = shapes.Rectangle(
+                    x = hintX - 235,
+                    y = hintY - 245,
+                    width = 490 * (BreakTime / closestDestructData["data"]["breakTime"]),
+                    height = 40,
+                    color = ( 25, 100, 25 )
+                )
+                filled.opacity = 150
+                filled.draw()
         else:
             BreakTime = 0
     else:
         BreakTime = 0
 
-    if closestOreData["data"] == 0:
-        closestOreData["data"] = {
+    if closestDestructData["data"] == 0:
+        closestDestructData["data"] = {
             "breakTime": 1
         }
 
-    if BreakTime >= closestOreData["data"]["breakTime"]:
-        structuresGenerated[str(closestOreData["x"]) + "_" + str(closestOreData["y"])] = 0
-        for give in closestOreData["data"]["gives"]:
-            amount = random.randint(give["min"], give["max"])
-            giveItem(give["item"], amount)
-        BreakTime = 0
+    if BreakTime >= closestDestructData["data"]["breakTime"]:
+        structuresGenerated[str(closestDestructData["x"]) + "_" + str(closestDestructData["y"])] = 0
+        if closestDestructData["data"]["isOre"]:
+            for give in closestDestructData["data"]["gives"]:
+                amount = random.randint(give["min"], give["max"])
+                giveItem(give["item"], amount)
+            BreakTime = 0
+        else:
+            giveItem(closestDestructData["item"], 1)
 
     LMBClicked = False
 
@@ -1195,6 +1217,17 @@ def drawSlot(slotX, slotY, color, item, label, clickCallback = None, callbackPar
     )
     if mouseX > slotX and mouseY > slotY and mouseX < slotX + slotSize and mouseY < slotY + slotSize:
         slotSquare.opacity = 255
+        
+        if not item["item"] == 0:
+            slotItemLabel = pyglet.text.Label(itemTypes[item["item"]]["name"],
+                font_name = "Press Start 2P",
+                font_size = 15,
+                x = slotX + 5,
+                y = slotY - 5,
+                color = (255, 255, 255, 255),
+                anchor_x = "left", anchor_y = "top")
+            slotItemLabel.draw()
+
         if LMBClicked == True:
             if not clickCallback == None:
                 if callbackParameters == None:
