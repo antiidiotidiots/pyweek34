@@ -2027,6 +2027,7 @@ def loadNextRepairStage():
     if rocketRepairStage >= len(rocketRepairStages):
         # End the game. Show a message from us :)
         endGame()
+        rocketRepairStage -= 1
         return
 
     tutorialPromptQueue = rocketRepairStages[rocketRepairStage]["tutorialPrompts"]
