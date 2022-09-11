@@ -7,6 +7,8 @@ from pyglet import shapes
 
 import random
 
+countdown = False
+
 window = pyglet.window.Window(fullscreen=True, caption="Stranded")
 
 x = 0
@@ -20,7 +22,7 @@ oxygen = 1
 oxygenMinutes = 20
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
-backpackSlots = 5
+backpackSlots = 7
 inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "smelter", "quantity": 1 }, { "item": "ironChunks", "quantity": 200 }, { "item": "copperChunks", "quantity": 200 }, { "item": "carbonChunks", "quantity": 500 } ]
 
 selectedHand = 1
@@ -493,6 +495,8 @@ def drawIntro():
     window.clear()
 
     if introElapsed < 10:
+        if not countdown:
+            introElapsed = 10
         label = pyglet.text.Label(str(math.ceil(5 - introElapsed / 2)),
             font_name = "Press Start 2P",
             font_size = 200,
@@ -535,7 +539,7 @@ def drawIntro():
                 height = window.height,
                 color = ( 0, 0, 0 )
             )
-            cover.opacity = (introElapsed - 16.5) * (255 / 2)
+            cover.opacity = math.floor((introElapsed - 16.5) * (255 / 2))
             cover.draw()
     else:
         gameState = "running"
@@ -1103,7 +1107,7 @@ def on_key_press(symbol, modifiers):
             keysPressed["down"] = True
         elif symbol == key.B:
             backpackOpened = not backpackOpened
-        elif symbol == 49: # numbers 1 through 7
+        elif symbol == 49: # numbers 1 through 9
             selectedHand = 1
         elif symbol == 50:
             selectedHand = 2
@@ -1117,6 +1121,10 @@ def on_key_press(symbol, modifiers):
             swapWithSelectedHand(6)
         elif symbol == 55:
             swapWithSelectedHand(7)
+        elif symbol == 56:
+            swapWithSelectedHand(8)
+        elif symbol == 57:
+            swapWithSelectedHand(9)
         elif symbol == key.W:
             keysPressed["w"] = True
         elif symbol == key.A:
