@@ -1688,20 +1688,21 @@ def drawInventory():
                     else:
                         currentGUIData["slotItems"][1]["item"] = 0
                         currentGUIData["slotItems"][1]["quantity"] = 1
-                if currentGUIData["slotItems"][2]["item"] == smelterRecipes[currentGUIData["slotItems"][0]["item"]]:
-                    currentGUIData["slotItems"][2]["quantity"] += 1
-                    
-                    if currentGUIData["slotItems"][0]["quantity"] > 1:
-                        currentGUIData["slotItems"][0]["quantity"] -= 1
-                    else:
-                        currentGUIData["slotItems"][0]["item"] = 0
-                        currentGUIData["slotItems"][0]["quantity"] = 1
+                if not currentGUIData["slotItems"][0]["item"] == 0:
+                    if currentGUIData["slotItems"][2]["item"] == smelterRecipes[currentGUIData["slotItems"][0]["item"]]:
+                        currentGUIData["slotItems"][2]["quantity"] += 1
                         
-                    if currentGUIData["slotItems"][1]["quantity"] > 1:
-                        currentGUIData["slotItems"][1]["quantity"] -= 1
-                    else:
-                        currentGUIData["slotItems"][1]["item"] = 0
-                        currentGUIData["slotItems"][1]["quantity"] = 1
+                        if currentGUIData["slotItems"][0]["quantity"] > 1:
+                            currentGUIData["slotItems"][0]["quantity"] -= 1
+                        else:
+                            currentGUIData["slotItems"][0]["item"] = 0
+                            currentGUIData["slotItems"][0]["quantity"] = 1
+                            
+                        if currentGUIData["slotItems"][1]["quantity"] > 1:
+                            currentGUIData["slotItems"][1]["quantity"] -= 1
+                        else:
+                            currentGUIData["slotItems"][1]["item"] = 0
+                            currentGUIData["slotItems"][1]["quantity"] = 1
 
     elif OpenGUIMenu == "drill":
         if len(currentGUIData["slotItems"]) < 15:
