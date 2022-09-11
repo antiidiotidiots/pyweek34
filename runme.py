@@ -1149,8 +1149,7 @@ def on_key_press(symbol, modifiers):
             inventoryItems[selectedHand - 1]["quantity"] = 1
     elif gameState == "intro":
         if symbol == key.SPACE:
-            # gameState = "running"
-            gameState = "ending"
+            gameState = "running"
 
 def swapWithSelectedHand(swapWith):
     global inventoryItems
