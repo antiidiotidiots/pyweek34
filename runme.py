@@ -19,7 +19,7 @@ yMomentum = 0
 
 oxygen = 1
 
-oxygenMinutes = 10
+oxygenMinutes = 15
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
@@ -130,7 +130,7 @@ fabricationRecipes = [
     {
         "inputs": [
             { "item": "ironChunks", "quantity": 5 },
-            { "item": "solidFuel", "quantity": 20 }
+            { "item": "solidFuel", "quantity": 10 }
         ],
         "output": { "item": "drill", "quantity": 1 }
     },
@@ -168,12 +168,40 @@ rocketRepairStages = [
         ],
         "tutorialPrompts": [
             {
+                "title": "Keys",
+                "description": "Use WASD or arrow keys to\nmove. Pressing 1 or 2 selects\nthat hand. Press N to move\non."
+            },
+            {
+                "title": "Keys 2",
+                "description": "Pressing B opens your\nbackpack. There you can \nfabricate things and \nsee 7 more slots."
+            },
+            {
+                "title": "Keys 3",
+                "description": "Pressing the number in the\ntop left of a slot swaps\nthe item in that slot\nwith the"
+            },
+            {
+                "title": "Keys 3.5",
+                "description": "one in your currently\nselected hand."
+            },
+            {
+                "title": "Moving items",
+                "description": "Left click on an item to move\nit. Right click on an\nitem to split the stack\nin half."
+            },
+            {
                 "title": "Mine",
                 "description": "Pull out your pickaxe and\nmine the ores around you.\n\nNo, this isn't Minecraft."
             },
             {
+                "title": "Mine 2",
+                "description": "To mine, go up to an ore\nuntil you see the hint below\nit and simply hold left\nclick."
+            },
+            {
                 "title": "Fabricate",
                 "description": "Use the ores you mined to\nmake a smelter."
+            },
+            {
+                "title": "Build",
+                "description": "To build something, it must\nbe in your currently\nselected hand."
             },
             {
                 "title": "Smelt",
@@ -193,7 +221,7 @@ rocketRepairStages = [
         "tutorialPrompts": [
             {
                 "title": "Mine FASTER!",
-                "description": "Fabricate a drill using iron\nbars and solid fuel to do the\nwork for you.\nDrills can also gather\ncrude oil."
+                "description": "Fabricate a drill using iron\nbars and solid fuel to do the\nwork for you.\nDrills can also gather\ncrude oil, which is used later."
             }
         ]
     },
@@ -1333,7 +1361,7 @@ def updateGame(dt):
             for i in range(15):
                 currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
         
-        if random.random() < 2 * dt:
+        if random.random() < 1.5 * dt:
             index = random.randint(0, 14)
             if currentGUIData["slotItems"][index]["item"] == 0:
                 currentGUIData["slotItems"][index]["item"] = random.choice(["carbonChunks", "ironChunks", "crudeOil", "copperChunks"])
@@ -1585,7 +1613,7 @@ def drawInventory():
         }
 
     if OpenGUIMenu == "smelter":
-        if len(currentGUIData["slotItems"]) <= 2:
+        if not len(currentGUIData["slotItems"]) == 3:
             currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
 
         smelterRecipes = {
