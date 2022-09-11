@@ -19,7 +19,7 @@ yMomentum = 0
 
 oxygen = 1
 
-oxygenMinutes = 15
+oxygenMinutes = 12
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
@@ -1365,7 +1365,7 @@ def updateGame(dt):
             for i in range(15):
                 currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
         
-        if random.random() < 4 * dt:
+        if random.random() < 6 * dt:
             index = random.randint(0, 14)
             if currentGUIData["slotItems"][index]["item"] == 0:
                 currentGUIData["slotItems"][index]["item"] = random.choice(["carbonChunks", "carbonChunks", "ironChunks", "crudeOil", "copperChunks"])
