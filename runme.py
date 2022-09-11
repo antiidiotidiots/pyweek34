@@ -19,7 +19,7 @@ yMomentum = 0
 
 oxygen = 1
 
-oxygenMinutes = 20
+oxygenMinutes = 10
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
@@ -485,6 +485,11 @@ def on_draw():
         drawGame()
     elif gameState == "intro":
         drawIntro()
+    elif gameState == "ending":
+        if endElapsed < 2:
+            drawGame()
+        
+        drawEndScreen()
 
 timeSinceAudioPlayed = 0
 dotsShown = 0
@@ -1144,7 +1149,8 @@ def on_key_press(symbol, modifiers):
             inventoryItems[selectedHand - 1]["quantity"] = 1
     elif gameState == "intro":
         if symbol == key.SPACE:
-            gameState = "running"
+            # gameState = "running"
+            gameState = "ending"
 
 def swapWithSelectedHand(swapWith):
     global inventoryItems
@@ -1226,18 +1232,22 @@ framerate = 144 # Frames per second
 
 timeSinceAnimationFrame = 0
 
+endElapsed = 0
+
 def update(dt):
-    global introElapsed, timeSinceAudioPlayed, timeSinceAnimationFrame, globalAnimationFrame
+    global introElapsed, timeSinceAudioPlayed, timeSinceAnimationFrame, globalAnimationFrame, endElapsed
     
     if gameState == "running":
         updateGame(dt)
-        timeSinceAnimationFrame += 1 / framerate
+        timeSinceAnimationFrame += 1 * dt
         if timeSinceAnimationFrame > 0.1:
             timeSinceAnimationFrame = 0
             globalAnimationFrame += 1
     elif gameState == "intro":
-        introElapsed += 1 / framerate
-        timeSinceAudioPlayed += 1 / framerate
+        introElapsed += 1 * dt
+        timeSinceAudioPlayed += 1 * dt
+    elif gameState == "ending":
+        endElapsed += 1 * dt
 
 def updateGame(dt):
     global x, y, xMomentum, yMomentum, oxygen, BreakTime
@@ -1931,6 +1941,10 @@ def loadNextRepairStage():
             removeItem(materialForStage["item"], materialForStage["quantity"])
 
     rocketRepairStage += 1
+    if rocketRepairStage >= len(rocketRepairStages):
+        # End the game. Show a message from us :)
+        endGame()
+
     tutorialPromptQueue = rocketRepairStages[rocketRepairStage]["tutorialPrompts"]
 
 def drawTutorialPromt():
@@ -1995,6 +2009,56 @@ def nextTutorialPrompt():
         tutorialPromptQueue.pop(0)
 
 loadNextRepairStage()
+
+# THIS CODE WAS MADE AFTER THE GAME JAM FINISHED. IT DOES NOT INCLUDE ANY GAMEPLAY, ONLY A MESSAGE FROM US.
+endElapsed = 0
+
+def endGame():
+    global gameState
+
+    gameState = "ending"
+
+def drawEndScreen():
+    endMessage = [
+        "Thank you so much for playing our game.",
+        "",
+        "",
+        "Unfortunately, we didn't get to implement",
+        "everything we wanted to, although we did try.",
+        "We hope you enjoyed playing it as much as we",
+        "enjoyed making it.",
+        "",
+        "",
+        "Press ESC to close this window."
+    ]
+
+    if endElapsed > 2:
+        index = 0
+        for message in endMessage:
+            if endElapsed > 4 + index * 0.6:
+                label = pyglet.text.Label(message,
+                        font_name = "Press Start 2P",
+                        font_size = 20,
+                        x = window.width / 2,
+                        y = window.height - 30 - (30 * index),
+                        color = (255, 255, 255, round(max(((endElapsed - (4 + index * 0.6))) / 2 * 255, 0))),
+                        anchor_x = "center", anchor_y = "top")
+                        
+                label.draw()
+
+            index += 1
+    else:
+        cover = shapes.Rectangle(
+            x = 0,
+            y = 0,
+            width = window.width,
+            height = window.height,
+            color = ( 0, 0, 0 )
+        )
+        cover.opacity = endElapsed * (255 / 2)
+        cover.draw()
+
+# BACK TO REGULAR CODE
 
 pyglet.clock.schedule_interval(update, 1 / framerate)
 
