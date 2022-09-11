@@ -1727,8 +1727,8 @@ def drawInventory():
                 ( 80, 80, 80 ), currentGUIData["slotItems"][output], "", setGUISlot, output, None, None, False, True
             )
     elif OpenGUIMenu == "coilMaker":
-        if not len(currentGUIData["slotItems"]) == 3:
-            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
+        if not len(currentGUIData["slotItems"]) == 2:
+            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
 
         coilMakerRecipes = {
             "copperBar": "copperWire"
@@ -1774,14 +1774,15 @@ def drawInventory():
                 else:
                     currentGUIData["slotItems"][0]["item"] = 0
                     currentGUIData["slotItems"][0]["quantity"] = 1
-            if currentGUIData["slotItems"][1]["item"] == coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]:
-                currentGUIData["slotItems"][1]["quantity"] += 1
-                
-                if currentGUIData["slotItems"][0]["quantity"] > 1:
-                    currentGUIData["slotItems"][0]["quantity"] -= 1
-                else:
-                    currentGUIData["slotItems"][0]["item"] = 0
-                    currentGUIData["slotItems"][0]["quantity"] = 1
+            if not currentGUIData["slotItems"][0]["item"] == 0:
+                if currentGUIData["slotItems"][1]["item"] == coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]:
+                    currentGUIData["slotItems"][1]["quantity"] += 1
+                    
+                    if currentGUIData["slotItems"][0]["quantity"] > 1:
+                        currentGUIData["slotItems"][0]["quantity"] -= 1
+                    else:
+                        currentGUIData["slotItems"][0]["item"] = 0
+                        currentGUIData["slotItems"][0]["quantity"] = 1
     elif OpenGUIMenu == "oilRefinery":
         if len(currentGUIData["slotItems"]) <= 1:
             currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
@@ -1830,14 +1831,15 @@ def drawInventory():
                 else:
                     currentGUIData["slotItems"][0]["item"] = 0
                     currentGUIData["slotItems"][0]["quantity"] = 1
-            if currentGUIData["slotItems"][1]["item"] == coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]:
-                currentGUIData["slotItems"][1]["quantity"] += 1
-                
-                if currentGUIData["slotItems"][0]["quantity"] > 1:
-                    currentGUIData["slotItems"][0]["quantity"] -= 1
-                else:
-                    currentGUIData["slotItems"][0]["item"] = 0
-                    currentGUIData["slotItems"][0]["quantity"] = 1
+            if not currentGUIData["slotItems"][0]["item"] == 0:
+                if currentGUIData["slotItems"][1]["item"] == coilMakerRecipes[currentGUIData["slotItems"][0]["item"]]:
+                    currentGUIData["slotItems"][1]["quantity"] += 1
+                    
+                    if currentGUIData["slotItems"][0]["quantity"] > 1:
+                        currentGUIData["slotItems"][0]["quantity"] -= 1
+                    else:
+                        currentGUIData["slotItems"][0]["item"] = 0
+                        currentGUIData["slotItems"][0]["quantity"] = 1
 
     if not draggingItem == 0:
         drawSlot(mouseX - slotSize / 2, mouseY - slotSize / 2, (0, 0, 0), draggingItem, "", None, None, None, None, False, False, 0)
