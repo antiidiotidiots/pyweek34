@@ -23,7 +23,7 @@ oxygenMinutes = 15
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
-inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": 0, "quantity": 0 } ]
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": 0, "quantity": 1 } ]
 
 selectedHand = 1
 
@@ -202,6 +202,10 @@ rocketRepairStages = [
             {
                 "title": "Build",
                 "description": "To build something, it must\nbe in your currently\nselected hand."
+            },
+            {
+                "title": "Interact",
+                "description": "To interact with an object,\nyour currently selected\nitem must not be the\npickaxe."
             },
             {
                 "title": "Smelt",
@@ -851,7 +855,7 @@ def drawGame():
                                 closestInteractableData["type"] = "ToBreak"
                                 closestInteractableData["item"] = chunkStructure
                         else:
-                            if not chunkStructure == "ironOre" and not chunkStructure == "carbonOre":
+                            if not chunkStructures[chunkStructure]["isOre"]:
                                 closestInteractableData["type"] = "ToInteract"
                                 closestInteractableData["GUImenu"] = chunkStructure
                             else:
@@ -1361,10 +1365,10 @@ def updateGame(dt):
             for i in range(15):
                 currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
         
-        if random.random() < 1.5 * dt:
+        if random.random() < 4 * dt:
             index = random.randint(0, 14)
             if currentGUIData["slotItems"][index]["item"] == 0:
-                currentGUIData["slotItems"][index]["item"] = random.choice(["carbonChunks", "ironChunks", "crudeOil", "copperChunks"])
+                currentGUIData["slotItems"][index]["item"] = random.choice(["carbonChunks", "carbonChunks", "ironChunks", "crudeOil", "copperChunks"])
                 currentGUIData["slotItems"][index]["quantity"] = 1
             else:
                 currentGUIData["slotItems"][index]["quantity"] += 1
@@ -1700,7 +1704,7 @@ def drawInventory():
                         currentGUIData["slotItems"][1]["quantity"] = 1
 
     elif OpenGUIMenu == "drill":
-        if len(currentGUIData["slotItems"]) <= 15:
+        if len(currentGUIData["slotItems"]) < 15:
             for i in range(15):
                 currentGUIData["slotItems"].append({ "item": 0, "quantity": 1})
 
@@ -1722,8 +1726,8 @@ def drawInventory():
                 ( 80, 80, 80 ), currentGUIData["slotItems"][output], "", setGUISlot, output, None, None, False, True
             )
     elif OpenGUIMenu == "coilMaker":
-        if len(currentGUIData["slotItems"]) <= 1:
-            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
+        if not len(currentGUIData["slotItems"]) == 3:
+            currentGUIData["slotItems"] = [{ "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}, { "item": 0, "quantity": 1}]
 
         coilMakerRecipes = {
             "copperBar": "copperWire"
@@ -1857,8 +1861,9 @@ def drawInventory():
 
 def setGUISlot(slot, item):
     global currentGUIData
-
-    currentGUIData["slotItems"][slot] = item
+    
+    if len(currentGUIData["slotItems"]) > slot:
+        currentGUIData["slotItems"][slot] = item
 
 def setSlot(slot, item):
     inventoryItems[slot] = item
