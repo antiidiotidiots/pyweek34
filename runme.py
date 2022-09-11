@@ -19,7 +19,7 @@ yMomentum = 0
 
 oxygen = 1
 
-oxygenMinutes = 0.5
+oxygenMinutes = 10
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
