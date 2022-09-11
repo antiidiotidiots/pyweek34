@@ -19,7 +19,7 @@ yMomentum = 0
 
 oxygen = 1
 
-oxygenMinutes = 10
+oxygenMinutes = 0.5
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
@@ -490,6 +490,11 @@ def on_draw():
             drawGame()
         
         drawEndScreen()
+    elif gameState == "dead":
+        if endElapsed < 2:
+            drawGame()
+        
+        drawDeadScreen()
 
 timeSinceAudioPlayed = 0
 dotsShown = 0
@@ -622,6 +627,44 @@ def drawConsole():
         color = ( 100, 40, 40 )
     )
     planet.draw()
+
+def drawDeadScreen():
+    endMessage = [
+        "Unfortunately, you ran out of oxygen.",
+        "",
+        "",
+        "Thank you so much for playing our game.",
+        "Feel free to retry by quitting the game",
+        "and restarting.",
+        "",
+        "Press ESC to close this window."
+    ]
+
+    if endElapsed > 2:
+        index = 0
+        for message in endMessage:
+            if endElapsed > 4 + index * 0.6:
+                label = pyglet.text.Label(message,
+                        font_name = "Press Start 2P",
+                        font_size = 20,
+                        x = window.width / 2,
+                        y = window.height - 30 - (30 * index),
+                        color = (255, 255, 255, round(max(((endElapsed - (4 + index * 0.6))) / 2 * 255, 0))),
+                        anchor_x = "center", anchor_y = "top")
+                        
+                label.draw()
+
+            index += 1
+    else:
+        cover = shapes.Rectangle(
+            x = 0,
+            y = 0,
+            width = window.width,
+            height = window.height,
+            color = ( 0, 0, 0 )
+        )
+        cover.opacity = endElapsed * (255 / 2)
+        cover.draw()
 
 oldX = 0
 oldY = 0
@@ -1247,15 +1290,20 @@ def update(dt):
         timeSinceAudioPlayed += 1 * dt
     elif gameState == "ending":
         endElapsed += 1 * dt
+    elif gameState == "dead":
+        endElapsed += 1 * dt
 
 def updateGame(dt):
-    global x, y, xMomentum, yMomentum, oxygen, BreakTime
+    global x, y, xMomentum, yMomentum, oxygen, BreakTime, gameState
 
     movementSpeed = 60 * dt
 
     oxygenDepletionRate = oxygenDepletePerSecond * ((math.sqrt(xMomentum * xMomentum + yMomentum * yMomentum) + 25) / 25)
 
     oxygen -= oxygenDepletionRate * dt
+
+    if oxygen <= 0:
+        gameState = "dead"
 
     if keysPressed["left"] or keysPressed["a"]:
         xMomentum -= movementSpeed
