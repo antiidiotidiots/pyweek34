@@ -1392,7 +1392,7 @@ def updateGame(dt):
         loadNextRepairStage()
 
 
-slotSize = 85
+slotSize = 70
 backpackOpened = False
 
 fabricatingMenuSelected = 0
