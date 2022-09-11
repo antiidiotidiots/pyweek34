@@ -249,7 +249,7 @@ rocketRepairStages = [
         "tutorialPrompts": [
             {
                 "title": "Fuel the rocket",
-                "description": "Craft an oil refinery and create\nsome fuel.\nYou're almost there!"
+                "description": "Craft an oil refinery and\ncreatesome fuel.\nYou're almost there!"
             }
         ]
     }
@@ -2025,6 +2025,7 @@ def loadNextRepairStage():
     if rocketRepairStage >= len(rocketRepairStages):
         # End the game. Show a message from us :)
         endGame()
+        return
 
     tutorialPromptQueue = rocketRepairStages[rocketRepairStage]["tutorialPrompts"]
 
