@@ -23,7 +23,7 @@ oxygenMinutes = 10
 oxygenDepletePerSecond = 1 / (oxygenMinutes * 60)
 
 backpackSlots = 7
-inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": "smelter", "quantity": 1 }, { "item": "ironChunks", "quantity": 200 }, { "item": "copperChunks", "quantity": 200 }, { "item": "carbonChunks", "quantity": 500 } ]
+inventoryItems = [ { "item": "pickaxe", "quantity": 1 }, { "item": 0, "quantity": 0 } ]
 
 selectedHand = 1
 
